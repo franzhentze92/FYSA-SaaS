@@ -37,6 +37,36 @@ const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
     }
   }, [userMenuOpen]);
 
+  // Cerrar menú móvil al cambiar de ruta
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
+
+  // Cerrar menú móvil al hacer clic fuera
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      const nav = target.closest('nav');
+      const button = target.closest('button[aria-label="Toggle mobile menu"]');
+      
+      if (nav && !button && !target.closest('.mobile-menu-content')) {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    // Agregar un pequeño delay para evitar que se cierre inmediatamente al abrir
+    const timeout = setTimeout(() => {
+      document.addEventListener('click', handleClickOutside);
+    }, 100);
+
+    return () => {
+      clearTimeout(timeout);
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [mobileMenuOpen]);
+
   const handleLogout = () => {
     setCurrentUser(null);
     setCurrentUserState(null);
@@ -141,8 +171,10 @@ const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
 
             {/* Mobile Menu Button */}
             <button
-              className="md:hidden p-2 text-gray-700"
+              className="md:hidden p-2 text-gray-700 hover:text-[#db7f3a] transition-colors"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Toggle mobile menu"
+              aria-expanded={mobileMenuOpen}
             >
               {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
@@ -150,7 +182,7 @@ const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
 
           {/* Mobile Menu */}
           {mobileMenuOpen && (
-            <div className="md:hidden py-4 border-t border-gray-200">
+            <div className="md:hidden py-4 border-t border-gray-200 bg-white mobile-menu-content">
               <div className="flex flex-col gap-4">
                 {menuItems.map((item) => (
                   <Link

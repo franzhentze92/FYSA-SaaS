@@ -73,37 +73,37 @@ const Landing: React.FC = () => {
           {/* Services Images Section */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
             {/* Card 1: Servicios Profesionales */}
-            <div className="relative rounded-2xl overflow-hidden shadow-2xl group cursor-pointer transform transition-all duration-300 hover:-translate-y-2">
+            <div className="relative rounded-2xl overflow-hidden shadow-2xl group cursor-pointer transform transition-all duration-300 hover:-translate-y-2 min-h-[500px] md:min-h-[600px]">
               <img 
-                src="/images landing page/ChatGPT Image Dec 22, 2025, 03_15_36 PM.png" 
+                src="/images landing page/3e7769a43b7da6407e56d23d40df5ac6.jpg" 
                 alt="Servicios de Fumigación y Control de Plagas" 
-                className="w-full h-96 object-cover group-hover:scale-110 transition-transform duration-500"
+                className="w-full h-full min-h-[500px] md:min-h-[600px] object-cover group-hover:scale-110 transition-transform duration-500"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-black/20 z-10"></div>
-              <div className="absolute inset-0 z-20 flex flex-col justify-end p-8 text-white">
+              <div className="absolute inset-0 z-20 flex flex-col justify-end pb-6 md:pb-8 pt-20 md:pt-12 px-6 md:px-8 text-white">
                 <div className="mb-4">
                   <div className="inline-flex items-center gap-2 px-3 py-1 backdrop-blur-sm rounded-full text-sm font-medium mb-4" style={{ backgroundColor: 'rgba(219, 127, 58, 0.9)' }}>
                     <Award className="w-4 h-4" />
                     Más de 30 años de experiencia
                   </div>
                 </div>
-                <h3 className="text-3xl font-bold mb-3 transition-colors" style={{ color: 'rgba(255, 255, 255, 0.9)' }} onMouseEnter={(e) => e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)'} onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255, 255, 255, 0.9)'}>
+                <h3 className="text-2xl md:text-3xl font-bold mb-3 transition-colors leading-tight" style={{ color: 'rgba(255, 255, 255, 0.9)' }} onMouseEnter={(e) => e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)'} onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255, 255, 255, 0.9)'}>
                   Servicios Profesionales
                 </h3>
-                <p className="text-lg mb-6 leading-relaxed" style={{ color: 'rgba(255, 255, 255, 0.95)' }}>
+                <p className="text-base md:text-lg mb-4 md:mb-6 leading-relaxed" style={{ color: 'rgba(255, 255, 255, 0.95)' }}>
                   Técnicos certificados y métodos seguros para máxima efectividad y seguridad
                 </p>
-                <div className="flex flex-wrap gap-3 mb-4">
-                  <span className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-lg text-sm">✓ Técnicos Certificados</span>
-                  <span className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-lg text-sm">✓ Métodos Seguros</span>
-                  <span className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-lg text-sm">✓ Máxima Efectividad</span>
+                <div className="flex flex-wrap gap-2 md:gap-3 mb-3 md:mb-4">
+                  <span className="px-2 md:px-3 py-1 bg-white/20 backdrop-blur-sm rounded-lg text-xs md:text-sm">✓ Técnicos Certificados</span>
+                  <span className="px-2 md:px-3 py-1 bg-white/20 backdrop-blur-sm rounded-lg text-xs md:text-sm">✓ Métodos Seguros</span>
+                  <span className="px-2 md:px-3 py-1 bg-white/20 backdrop-blur-sm rounded-lg text-xs md:text-sm">✓ Máxima Efectividad</span>
                 </div>
                 <Link
                   to="/contactanos"
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-white rounded-lg font-semibold transition-all transform hover:scale-105 w-fit group-hover:shadow-xl"
-                  style={{ color: '#db7f3a' }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(219, 127, 58, 0.1)'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                  className="inline-flex items-center gap-2 px-6 py-3 text-white rounded-lg font-semibold transition-all transform hover:scale-105 w-fit group-hover:shadow-xl"
+                  style={{ backgroundColor: '#db7f3a' }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#c46f2f'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#db7f3a'}
                 >
                   Solicitar Servicio
                   <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
@@ -112,30 +112,30 @@ const Landing: React.FC = () => {
             </div>
 
             {/* Card 2: Protección Integral */}
-            <div className="relative rounded-2xl overflow-hidden shadow-2xl group cursor-pointer transform transition-all duration-300 hover:-translate-y-2">
+            <div className="relative rounded-2xl overflow-hidden shadow-2xl group cursor-pointer transform transition-all duration-300 hover:-translate-y-2 min-h-[500px] md:min-h-[600px]">
               <img 
                 src="/images landing page/rodent_control_in_commercial.jpg" 
                 alt="Control de Plagas Industrial" 
-                className="w-full h-96 object-cover group-hover:scale-110 transition-transform duration-500"
+                className="w-full h-full min-h-[500px] md:min-h-[600px] object-cover group-hover:scale-110 transition-transform duration-500"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-black/20 z-10"></div>
-              <div className="absolute inset-0 z-20 flex flex-col justify-end p-8 text-white">
+              <div className="absolute inset-0 z-20 flex flex-col justify-end pb-6 md:pb-8 pt-16 md:pt-12 px-6 md:px-8 text-white">
                 <div className="mb-4">
                   <div className="inline-flex items-center gap-2 px-3 py-1 backdrop-blur-sm rounded-full text-sm font-medium mb-4" style={{ backgroundColor: 'rgba(219, 127, 58, 0.9)' }}>
                     <Building2 className="w-4 h-4" />
                     Cobertura Nacional
                   </div>
                 </div>
-                <h3 className="text-3xl font-bold mb-3 transition-colors" style={{ color: 'rgba(255, 255, 255, 0.9)' }} onMouseEnter={(e) => e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)'} onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255, 255, 255, 0.9)'}>
+                <h3 className="text-2xl md:text-3xl font-bold mb-3 transition-colors leading-tight" style={{ color: 'rgba(255, 255, 255, 0.9)' }} onMouseEnter={(e) => e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)'} onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255, 255, 255, 0.9)'}>
                   Protección Integral
                 </h3>
-                <p className="text-lg mb-6 leading-relaxed" style={{ color: 'rgba(255, 255, 255, 0.95)' }}>
+                <p className="text-base md:text-lg mb-4 md:mb-6 leading-relaxed" style={{ color: 'rgba(255, 255, 255, 0.95)' }}>
                   Para industrias, comercios y residencias en toda Guatemala
                 </p>
-                <div className="flex flex-wrap gap-3 mb-4">
-                  <span className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-lg text-sm">🏭 Industrias</span>
-                  <span className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-lg text-sm">🏢 Comercios</span>
-                  <span className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-lg text-sm">🏠 Residencias</span>
+                <div className="flex flex-wrap gap-2 md:gap-3 mb-3 md:mb-4">
+                  <span className="px-2 md:px-3 py-1 bg-white/20 backdrop-blur-sm rounded-lg text-xs md:text-sm">🏭 Industrias</span>
+                  <span className="px-2 md:px-3 py-1 bg-white/20 backdrop-blur-sm rounded-lg text-xs md:text-sm">🏢 Comercios</span>
+                  <span className="px-2 md:px-3 py-1 bg-white/20 backdrop-blur-sm rounded-lg text-xs md:text-sm">🏠 Residencias</span>
                 </div>
                 <Link
                   to="/servicios"
