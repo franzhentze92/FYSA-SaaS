@@ -2,11 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { X, Upload, FileText, XCircle } from 'lucide-react';
 import { Documento } from '@/types/documentacion';
 
+interface Cliente {
+  id: string;
+  nombre: string;
+  email: string;
+}
+
 interface AddDocumentoModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (documento: Omit<Documento, 'id' | 'fechaCreacion' | 'fechaModificacion' | 'tipo'>) => void;
+  onSubmit: (documento: Omit<Documento, 'id' | 'fechaCreacion' | 'fechaModificacion' | 'tipo'> & { clienteEmail?: string; clienteNombre?: string }) => void;
   existingDocumento?: Documento;
+  clientes?: Cliente[];
+  isAdmin?: boolean;
 }
 
 const AddDocumentoModal: React.FC<AddDocumentoModalProps> = ({
@@ -14,6 +22,8 @@ const AddDocumentoModal: React.FC<AddDocumentoModalProps> = ({
   onClose,
   onSubmit,
   existingDocumento,
+  clientes = [],
+  isAdmin = false,
 }) => {
   const [titulo, setTitulo] = useState('');
   const [descripcion, setDescripcion] = useState('');
@@ -21,6 +31,7 @@ const AddDocumentoModal: React.FC<AddDocumentoModalProps> = ({
   const [archivoPreview, setArchivoPreview] = useState<string | null>(null);
   const [tags, setTags] = useState('');
   const [creadoPor, setCreadoPor] = useState('');
+  const [selectedCliente, setSelectedCliente] = useState<string>('');
 
   useEffect(() => {
     if (existingDocumento) {
@@ -28,6 +39,7 @@ const AddDocumentoModal: React.FC<AddDocumentoModalProps> = ({
       setDescripcion(existingDocumento.descripcion || '');
       setTags(existingDocumento.tags?.join(', ') || '');
       setCreadoPor(existingDocumento.creadoPor || '');
+      setSelectedCliente((existingDocumento as any).clienteEmail || '');
       if (existingDocumento.archivo) {
         setArchivoPreview(existingDocumento.archivo.nombre);
       }
@@ -38,6 +50,7 @@ const AddDocumentoModal: React.FC<AddDocumentoModalProps> = ({
       setArchivoPreview(null);
       setTags('');
       setCreadoPor('');
+      setSelectedCliente('');
     }
   }, [existingDocumento, isOpen]);
 
@@ -71,6 +84,13 @@ const AddDocumentoModal: React.FC<AddDocumentoModalProps> = ({
       return;
     }
 
+    // Get selected client info
+    const cliente = clientes.find(c => c.email === selectedCliente);
+    const clienteInfo = selectedCliente ? {
+      clienteEmail: selectedCliente,
+      clienteNombre: cliente?.nombre,
+    } : {};
+
     let archivoData = undefined;
     if (archivo) {
       // Convertir archivo a base64
@@ -90,6 +110,7 @@ const AddDocumentoModal: React.FC<AddDocumentoModalProps> = ({
           archivo: archivoData,
           tags: tags.split(',').map(t => t.trim()).filter(t => t.length > 0),
           creadoPor: creadoPor.trim() || undefined,
+          ...clienteInfo,
         });
         onClose();
       };
@@ -103,6 +124,7 @@ const AddDocumentoModal: React.FC<AddDocumentoModalProps> = ({
         archivo: archivoData,
         tags: tags.split(',').map(t => t.trim()).filter(t => t.length > 0),
         creadoPor: creadoPor.trim() || undefined,
+        ...clienteInfo,
       });
       onClose();
     } else {
@@ -112,6 +134,7 @@ const AddDocumentoModal: React.FC<AddDocumentoModalProps> = ({
         descripcion: descripcion.trim() || undefined,
         tags: tags.split(',').map(t => t.trim()).filter(t => t.length > 0),
         creadoPor: creadoPor.trim() || undefined,
+        ...clienteInfo,
       });
       onClose();
     }
@@ -131,6 +154,32 @@ const AddDocumentoModal: React.FC<AddDocumentoModalProps> = ({
           </button>
         </div>
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
+          {/* Client selector - only for admins */}
+          {isAdmin && clientes.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Asignar a Cliente
+              </label>
+              <select
+                value={selectedCliente}
+                onChange={e => setSelectedCliente(e.target.value)}
+                className="w-full border rounded-lg p-2.5"
+              >
+                <option value="">Todos los clientes (público)</option>
+                {clientes.map((cliente) => (
+                  <option key={cliente.id} value={cliente.email}>
+                    {cliente.nombre} ({cliente.email})
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                {selectedCliente 
+                  ? 'Solo el cliente seleccionado verá este documento'
+                  : 'Todos los clientes verán este documento'}
+              </p>
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Título *

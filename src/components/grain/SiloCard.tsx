@@ -206,7 +206,7 @@ const SiloCard: React.FC<SiloCardProps> = ({
                         <button
                           onClick={() => onDeleteBatch(batch.id)}
                           className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
-                          title="Eliminar"
+                          title="Vaciar silo (remover batch del silo)"
                         >
                           <Trash2 size={14} />
                         </button>

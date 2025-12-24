@@ -5,6 +5,7 @@ import { useServicios } from '@/hooks/useServicios';
 import AddServicioModal from '@/components/servicios/AddServicioModal';
 import { DocumentoServicio } from '@/types/servicio';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
 
 const servicios = [
   { id: 148998, titulo: 'Aspersión en banda' },
@@ -14,6 +15,10 @@ const servicios = [
   { id: 136257, titulo: 'Gas. y Encarpado' },
   { id: 136258, titulo: 'Control de Roedores' },
   { id: 136256, titulo: 'Servicios Generales' },
+  { id: 1362563, titulo: 'Trampas de Luz' },
+  { id: 1362564, titulo: 'Tratamiento de Contenedores' },
+  { id: 1362565, titulo: 'Fum. de Silo Vacío' },
+  { id: 1362566, titulo: 'Fum. Graneleras' },
 ];
 
 const ServicioDetalle: React.FC = () => {
@@ -32,11 +37,17 @@ const ServicioDetalle: React.FC = () => {
     }
   }, []);
   const isAdmin = currentUser?.role === 'admin';
+  const userEmail = currentUser?.email;
 
-  const { documentos, agregarDocumento, actualizarDocumento, eliminarDocumento } = useServicios(servicioId);
+  // For clients, filter by their email. For admins, show all (no email filter).
+  const { documentos, agregarDocumento, actualizarDocumento, eliminarDocumento } = useServicios(
+    servicioId, 
+    isAdmin ? undefined : userEmail
+  );
   const [showModal, setShowModal] = useState(false);
   const [editingDocumento, setEditingDocumento] = useState<DocumentoServicio | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!servicio) {
     return (
@@ -44,13 +55,15 @@ const ServicioDetalle: React.FC = () => {
         <div className="max-w-7xl mx-auto">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
             <p className="text-gray-500">Servicio no encontrado</p>
-            <Link
-              to="/servicios"
-              className="mt-4 inline-flex items-center gap-2 text-blue-600 hover:text-blue-700"
-            >
-              <ArrowLeft size={16} />
-              Volver a Servicios
-            </Link>
+            {isAdmin && (
+              <Link
+                to="/servicios"
+                className="mt-4 inline-flex items-center gap-2 text-blue-600 hover:text-blue-700"
+              >
+                <ArrowLeft size={16} />
+                Volver a Servicios
+              </Link>
+            )}
           </div>
         </div>
       </div>
@@ -67,33 +80,57 @@ const ServicioDetalle: React.FC = () => {
     setShowModal(true);
   };
 
-  const handleDelete = (documentoId: string) => {
+  const handleDelete = async (documentoId: string) => {
     if (window.confirm('¿Estás seguro de que deseas eliminar este servicio?')) {
-      eliminarDocumento(documentoId);
+      try {
+        await eliminarDocumento(documentoId);
+        toast.success('Reporte eliminado correctamente');
+      } catch (error) {
+        toast.error('Error al eliminar el reporte');
+        console.error(error);
+      }
     }
   };
 
-  const handleSubmit = (documento: Omit<DocumentoServicio, 'id' | 'fechaCreacion' | 'fechaModificacion' | 'servicioId'>) => {
-    if (editingDocumento) {
-      actualizarDocumento(editingDocumento.id, documento);
-    } else {
-      agregarDocumento(documento);
+  const handleSubmit = async (documento: Omit<DocumentoServicio, 'id' | 'fechaCreacion' | 'fechaModificacion' | 'servicioId'>) => {
+    setIsSubmitting(true);
+    try {
+      if (editingDocumento) {
+        await actualizarDocumento(editingDocumento.id, documento);
+        toast.success('Reporte actualizado correctamente');
+      } else {
+        await agregarDocumento(documento);
+        toast.success('Reporte creado correctamente');
+      }
+      setShowModal(false);
+      setEditingDocumento(null);
+    } catch (error) {
+      toast.error('Error al guardar el reporte');
+      console.error(error);
+    } finally {
+      setIsSubmitting(false);
     }
-    setShowModal(false);
-    setEditingDocumento(null);
   };
 
   const handleViewPDF = (documento: DocumentoServicio) => {
     if (documento.archivo) {
-      const byteCharacters = atob(documento.archivo.contenido);
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      // If we have a URL from Supabase storage, use it directly
+      if ((documento.archivo as any).url) {
+        window.open((documento.archivo as any).url, '_blank');
+        return;
       }
-      const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
+      // Fallback to base64 content
+      if (documento.archivo.contenido) {
+        const byteCharacters = atob(documento.archivo.contenido);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+      }
     }
   };
 
@@ -135,13 +172,15 @@ const ServicioDetalle: React.FC = () => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <Link
-            to="/servicios"
-            className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
-          >
-            <ArrowLeft size={16} />
-            Volver a Servicios
-          </Link>
+          {isAdmin && (
+            <Link
+              to="/servicios"
+              className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
+            >
+              <ArrowLeft size={16} />
+              Volver a Servicios
+            </Link>
+          )}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <ClipboardList size={32} className="text-gray-700" />
@@ -297,11 +336,14 @@ const ServicioDetalle: React.FC = () => {
         <AddServicioModal
           isOpen={showModal}
           onClose={() => {
-            setShowModal(false);
-            setEditingDocumento(null);
+            if (!isSubmitting) {
+              setShowModal(false);
+              setEditingDocumento(null);
+            }
           }}
           onSubmit={handleSubmit}
           existingDocumento={editingDocumento || undefined}
+          isLoading={isSubmitting}
         />
       </div>
     </div>

@@ -10,8 +10,11 @@ export interface Documento {
     tipo: string;
     tamaño: number;
     contenido: string; // Base64 del PDF
+    url?: string; // URL from Supabase Storage
   };
   tags?: string[];
   creadoPor?: string;
+  clienteEmail?: string;
+  clienteNombre?: string;
 }
 

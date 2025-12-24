@@ -1,25 +1,28 @@
 import React, { useState, useMemo } from 'react';
-import { Receipt, Plus, Search, X, Users, FileText, Calendar, DollarSign, Eye, Download } from 'lucide-react';
+import { Receipt, Plus, Search, FileText, Eye, Download, Edit, Trash2 } from 'lucide-react';
 import { useAdminServicios } from '@/hooks/useAdminServicios';
 import { useFacturas } from '@/hooks/useFacturas';
+import { useAllReportes } from '@/hooks/useAllReportes';
 import { Factura } from '@/types/factura';
+import AddFacturaModal from '@/components/facturas/AddFacturaModal';
 import { format } from 'date-fns';
-import { v4 as uuidv4 } from 'uuid';
+import { toast } from 'sonner';
 
 const AdminFacturas: React.FC = () => {
   const { clientes } = useAdminServicios();
-  const { facturas, agregarFactura } = useFacturas();
+  const { facturas, agregarFactura, actualizarFactura, eliminarFactura } = useFacturas();
+  const { reportes } = useAllReportes();
 
   const [selectedCliente, setSelectedCliente] = useState<string>('');
+
+  const getReportesByIds = (reporteIds?: string[]) => {
+    if (!reporteIds || reporteIds.length === 0) return [];
+    return reportes.filter(r => reporteIds.includes(r.id));
+  };
   const [searchQuery, setSearchQuery] = useState('');
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newFactura, setNewFactura] = useState({
-    fechaFactura: new Date().toISOString().split('T')[0],
-    numeroFactura: '',
-    reporteIds: [] as string[],
-    notas: '',
-    archivo: null as File | null,
-  });
+  const [showModal, setShowModal] = useState(false);
+  const [editingFactura, setEditingFactura] = useState<Factura | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Obtener facturas del cliente seleccionado
   const facturasDelCliente = useMemo(() => {
@@ -46,70 +49,62 @@ const AdminFacturas: React.FC = () => {
     );
   }, [facturasDelCliente, searchQuery]);
 
-  const handleAgregarFactura = () => {
+  const handleAdd = () => {
     if (!selectedCliente) {
       alert('Por favor selecciona un cliente');
       return;
     }
+    setEditingFactura(null);
+    setShowModal(true);
+  };
 
-    if (!newFactura.fechaFactura || !newFactura.numeroFactura) {
-      alert('Por favor completa la fecha de factura y el número de factura');
-      return;
+  const handleEdit = (factura: Factura) => {
+    setEditingFactura(factura);
+    setShowModal(true);
+  };
+
+  const handleDelete = async (facturaId: string) => {
+    if (window.confirm('¿Estás seguro de que deseas eliminar esta factura?')) {
+      try {
+        await eliminarFactura(facturaId);
+        toast.success('Factura eliminada correctamente');
+      } catch (error) {
+        toast.error('Error al eliminar la factura');
+        console.error(error);
+      }
     }
+  };
 
-    const cliente = clientes.find(c => c.id === selectedCliente);
-    if (!cliente) {
-      alert('Cliente no encontrado');
-      return;
-    }
-
-    const facturaData: Omit<Factura, 'id' | 'fechaCreacion' | 'fechaModificacion'> = {
-      fechaFactura: newFactura.fechaFactura,
-      numeroFactura: newFactura.numeroFactura,
-      reporteIds: newFactura.reporteIds.length > 0 ? newFactura.reporteIds : undefined,
-      notas: newFactura.notas || undefined,
-      clienteEmail: cliente.email, // Agregar email del cliente
-    };
-
-    // Si hay un archivo, leerlo y convertirlo a base64
-    if (newFactura.archivo) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result as string;
-        const archivoData = {
-          nombre: newFactura.archivo!.name,
-          tipo: newFactura.archivo!.type,
-          tamaño: newFactura.archivo!.size,
-          contenido: base64String.split(',')[1], // Remover el prefijo data:application/pdf;base64,
-        };
-
-        agregarFactura({
-          ...facturaData,
-          archivo: archivoData,
+  const handleSubmit = async (factura: Omit<Factura, 'id' | 'fechaCreacion' | 'fechaModificacion'>) => {
+    setIsSubmitting(true);
+    try {
+      if (editingFactura) {
+        // Mantener el clienteEmail del factura siendo editada
+        await actualizarFactura(editingFactura.id, {
+          ...factura,
+          clienteEmail: editingFactura.clienteEmail,
         });
-
-        // Resetear formulario
-        setNewFactura({
-          fechaFactura: new Date().toISOString().split('T')[0],
-          numeroFactura: '',
-          reporteIds: [],
-          notas: '',
-          archivo: null,
+        toast.success('Factura actualizada correctamente');
+      } else {
+        // Nueva factura: asignar al cliente seleccionado
+        const cliente = clientes.find(c => c.id === selectedCliente);
+        if (!cliente) {
+          toast.error('Cliente no encontrado');
+          return;
+        }
+        await agregarFactura({
+          ...factura,
+          clienteEmail: cliente.email,
         });
-        setShowAddModal(false);
-      };
-      reader.readAsDataURL(newFactura.archivo);
-    } else {
-      agregarFactura(facturaData);
-      // Resetear formulario
-      setNewFactura({
-        fechaFactura: new Date().toISOString().split('T')[0],
-        numeroFactura: '',
-        reporteIds: [],
-        notas: '',
-        archivo: null,
-      });
-      setShowAddModal(false);
+        toast.success('Factura creada correctamente');
+      }
+      setShowModal(false);
+      setEditingFactura(null);
+    } catch (error) {
+      toast.error('Error al guardar la factura');
+      console.error(error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -178,7 +173,7 @@ const AdminFacturas: React.FC = () => {
             </div>
             <div className="ml-4">
               <button
-                onClick={() => setShowAddModal(true)}
+                onClick={handleAdd}
                 disabled={!selectedCliente}
                 className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -279,11 +274,30 @@ const AdminFacturas: React.FC = () => {
                             </span>
                           </td>
                           <td className="px-4 py-3">
-                            <span className="text-xs text-gray-600">
-                              {factura.reporteIds && factura.reporteIds.length > 0
-                                ? `${factura.reporteIds.length} reporte(s)`
-                                : '-'}
-                            </span>
+                            {(() => {
+                              const reporteIds = factura.reporteIds || ((factura as any).reporteId ? [(factura as any).reporteId] : []);
+                              const reportesAsociados = getReportesByIds(reporteIds);
+                              
+                              if (reportesAsociados.length === 0) {
+                                return <span className="text-xs text-gray-400">-</span>;
+                              }
+                              
+                              return (
+                                <div className="space-y-1 max-h-24 overflow-y-auto">
+                                  {reportesAsociados.map((reporte) => (
+                                    <div key={reporte.id} className="text-xs border-l-2 border-emerald-500 pl-2">
+                                      <div className="font-medium text-gray-900">{reporte.numeroReporte}</div>
+                                      <div className="text-gray-500 text-[10px]">{reporte.servicioTitulo}</div>
+                                    </div>
+                                  ))}
+                                  {reporteIds.length > reportesAsociados.length && (
+                                    <div className="text-xs text-amber-600">
+                                      {reporteIds.length - reportesAsociados.length} reporte(s) no encontrado(s)
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </td>
                           <td className="px-4 py-3">
                             {factura.archivo ? (
@@ -322,6 +336,20 @@ const AdminFacturas: React.FC = () => {
                                   </button>
                                 </>
                               )}
+                              <button
+                                onClick={() => handleEdit(factura)}
+                                className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                title="Editar"
+                              >
+                                <Edit size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(factura.id)}
+                                className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                title="Eliminar"
+                              >
+                                <Trash2 size={16} />
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -333,118 +361,20 @@ const AdminFacturas: React.FC = () => {
           )}
         </div>
 
-        {/* Modal para Agregar Factura */}
-        {showAddModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="border-b p-4 flex justify-between items-center sticky top-0 bg-white">
-                <h2 className="text-lg font-semibold">Agregar Nueva Factura</h2>
-                <button
-                  onClick={() => {
-                    setShowAddModal(false);
-                    setNewFactura({
-                      fechaFactura: new Date().toISOString().split('T')[0],
-                      numeroFactura: '',
-                      reporteIds: [],
-                      notas: '',
-                      archivo: null,
-                    });
-                  }}
-                  className="p-2 hover:bg-gray-100 rounded-lg"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-              <div className="p-6 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Fecha de Factura *
-                  </label>
-                  <input
-                    type="date"
-                    value={newFactura.fechaFactura}
-                    onChange={(e) => setNewFactura({ ...newFactura, fechaFactura: e.target.value })}
-                    className="w-full border rounded-lg p-2.5"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Número de Factura *
-                  </label>
-                  <input
-                    type="text"
-                    value={newFactura.numeroFactura}
-                    onChange={(e) => setNewFactura({ ...newFactura, numeroFactura: e.target.value })}
-                    className="w-full border rounded-lg p-2.5"
-                    placeholder="Ej: INV-2025-001"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Notas (Opcional)
-                  </label>
-                  <textarea
-                    value={newFactura.notas}
-                    onChange={(e) => setNewFactura({ ...newFactura, notas: e.target.value })}
-                    className="w-full border rounded-lg p-2.5"
-                    rows={3}
-                    placeholder="Notas adicionales sobre la factura..."
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Archivo PDF (Opcional)
-                  </label>
-                  <input
-                    type="file"
-                    accept="application/pdf"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        if (file.type !== 'application/pdf') {
-                          alert('Por favor selecciona un archivo PDF');
-                          return;
-                        }
-                        setNewFactura({ ...newFactura, archivo: file });
-                      }
-                    }}
-                    className="w-full border rounded-lg p-2.5"
-                  />
-                  {newFactura.archivo && (
-                    <p className="mt-2 text-sm text-gray-600">
-                      Archivo seleccionado: {newFactura.archivo.name}
-                    </p>
-                  )}
-                </div>
-                <div className="flex gap-3 pt-4 border-t">
-                  <button
-                    onClick={() => {
-                      setShowAddModal(false);
-                      setNewFactura({
-                        fechaFactura: new Date().toISOString().split('T')[0],
-                        numeroFactura: '',
-                        reporteIds: [],
-                        notas: '',
-                        archivo: null,
-                      });
-                    }}
-                    className="flex-1 py-2.5 border rounded-lg font-medium hover:bg-gray-50"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={handleAgregarFactura}
-                    className="flex-1 py-2.5 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700"
-                  >
-                    Agregar Factura
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Modal para Agregar/Editar Factura */}
+        <AddFacturaModal
+          isOpen={showModal}
+          onClose={() => {
+            if (!isSubmitting) {
+              setShowModal(false);
+              setEditingFactura(null);
+            }
+          }}
+          onSubmit={handleSubmit}
+          existingFactura={editingFactura || undefined}
+          isLoading={isSubmitting}
+          clienteEmail={clienteSeleccionado?.email}
+        />
       </div>
     </div>
   );

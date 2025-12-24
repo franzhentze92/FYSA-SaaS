@@ -10,7 +10,8 @@ export interface Factura {
     nombre: string;
     tipo: string;
     tamaño: number;
-    contenido: string; // Base64 del PDF
+    contenido: string; // Base64 del PDF (for upload)
+    url?: string; // URL from Supabase Storage (for viewing)
   };
   notas?: string;
 }

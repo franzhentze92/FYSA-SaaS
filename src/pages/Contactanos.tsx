@@ -6,7 +6,6 @@ const Contactanos: React.FC = () => {
     nombre: '',
     email: '',
     telefono: '',
-    tipoServicio: '',
     mensaje: ''
   });
   const [submitted, setSubmitted] = useState(false);
@@ -18,7 +17,7 @@ const Contactanos: React.FC = () => {
     setSubmitted(true);
     setTimeout(() => {
       setSubmitted(false);
-      setFormData({ nombre: '', email: '', telefono: '', tipoServicio: '', mensaje: '' });
+      setFormData({ nombre: '', email: '', telefono: '', mensaje: '' });
     }, 3000);
   };
 
@@ -29,30 +28,17 @@ const Contactanos: React.FC = () => {
     });
   };
 
-  const tiposServicio = [
-    'Industria y Comercio',
-    'Residencias',
-    'Fumigación General',
-    'Control de Roedores',
-    'Tratamiento Cuarentenario',
-    'Muestreo de Granos',
-    'Tratamientos Especiales',
-    'Aspersión en Banda',
-    'Desinfección de Ambientes',
-    'Otro'
-  ];
 
   return (
     <div className="min-h-screen bg-white">
       {/* Hero Section */}
-      <section className="relative bg-gradient-to-br from-orange-500 via-orange-600 to-orange-700 text-white py-20 px-4 overflow-hidden">
-        <div className="absolute inset-0 bg-black/10"></div>
+      <section className="relative text-white py-20 px-4 overflow-hidden" style={{ backgroundColor: '#db7f3a' }}>
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="text-center">
             <h1 className="text-5xl md:text-6xl font-bold mb-6">
               Contáctanos
             </h1>
-            <p className="text-xl md:text-2xl text-orange-100 max-w-3xl mx-auto">
+            <p className="text-xl md:text-2xl max-w-3xl mx-auto" style={{ color: 'rgba(255, 255, 255, 0.95)' }}>
               Estamos aquí para ayudarte. Envíanos un mensaje y te responderemos lo antes posible.
             </p>
           </div>
@@ -70,18 +56,14 @@ const Contactanos: React.FC = () => {
               </h2>
               
               <div className="space-y-6 mb-8">
-                <div className="flex items-start gap-4 p-4 bg-orange-50 rounded-xl border border-orange-200">
-                  <div className="w-12 h-12 bg-orange-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                <div className="flex items-start gap-4 p-4 rounded-xl border" style={{ backgroundColor: 'rgba(219, 127, 58, 0.1)', borderColor: 'rgba(219, 127, 58, 0.3)' }}>
+                  <div className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#db7f3a' }}>
                     <Mail className="text-white" size={20} />
                   </div>
                   <div>
                     <h3 className="font-semibold text-gray-900 mb-1">Email</h3>
-                    <a href="mailto:info@fysa.com" className="text-orange-600 hover:text-orange-700 transition-colors">
-                      info@fysa.com
-                    </a>
-                    <br />
-                    <a href="mailto:ventas@fysa.com" className="text-orange-600 hover:text-orange-700 transition-colors">
-                      ventas@fysa.com
+                    <a href="mailto:info@fysa-gt.com" className="transition-colors" style={{ color: '#db7f3a' }} onMouseEnter={(e) => e.currentTarget.style.color = '#c46f2f'} onMouseLeave={(e) => e.currentTarget.style.color = '#db7f3a'}>
+                      info@fysa-gt.com
                     </a>
                   </div>
                 </div>
@@ -108,7 +90,7 @@ const Contactanos: React.FC = () => {
                   <div>
                     <h3 className="font-semibold text-gray-900 mb-1">Dirección</h3>
                     <p className="text-gray-700">
-                      Ciudad de Guatemala, Guatemala
+                      35 Calle A 9-44, Z-11 Colonia Las Charcas, Guatemala
                     </p>
                   </div>
                 </div>
@@ -120,20 +102,13 @@ const Contactanos: React.FC = () => {
                   <div>
                     <h3 className="font-semibold text-gray-900 mb-2">Horario de Atención</h3>
                     <div className="space-y-1 text-sm text-gray-700">
-                      <div className="flex justify-between">
-                        <span className="font-medium">Lunes - Viernes:</span>
+                      <div className="flex justify-between gap-4">
+                        <span className="font-medium">Lun - Vie:</span>
                         <span>8:00 AM - 6:00 PM</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="font-medium">Sábados:</span>
-                        <span>9:00 AM - 1:00 PM</span>
-                      </div>
-                      <div className="flex justify-between">
+                      <div className="flex justify-between gap-4">
                         <span className="font-medium">Domingos:</span>
                         <span>Cerrado</span>
-                      </div>
-                      <div className="mt-2 pt-2 border-t border-purple-200">
-                        <span className="text-xs text-purple-600 font-semibold">Emergencias 24/7</span>
                       </div>
                     </div>
                   </div>
@@ -141,27 +116,23 @@ const Contactanos: React.FC = () => {
               </div>
 
               {/* Beneficios Rápidos */}
-              <div className="bg-gradient-to-br from-gray-50 to-orange-50 rounded-xl p-6 border border-gray-200">
+              <div className="bg-gradient-to-br from-gray-50 rounded-xl p-6 border border-gray-200" style={{ background: 'linear-gradient(to bottom right, #f9fafb, rgba(219, 127, 58, 0.1))' }}>
                 <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <MessageSquare className="text-orange-600" size={20} />
+                  <MessageSquare style={{ color: '#db7f3a' }} size={20} />
                   ¿Por qué contactarnos?
                 </h3>
                 <ul className="space-y-2 text-sm text-gray-700">
                   <li className="flex items-start gap-2">
-                    <CheckCircle2 size={16} className="text-orange-600 flex-shrink-0 mt-0.5" />
+                    <CheckCircle2 size={16} style={{ color: '#db7f3a' }} className="flex-shrink-0 mt-0.5" />
                     <span>Respuesta rápida en menos de 24 horas</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <CheckCircle2 size={16} className="text-orange-600 flex-shrink-0 mt-0.5" />
+                    <CheckCircle2 size={16} style={{ color: '#db7f3a' }} className="flex-shrink-0 mt-0.5" />
                     <span>Cotización gratuita sin compromiso</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <CheckCircle2 size={16} className="text-orange-600 flex-shrink-0 mt-0.5" />
+                    <CheckCircle2 size={16} style={{ color: '#db7f3a' }} className="flex-shrink-0 mt-0.5" />
                     <span>Asesoría técnica especializada</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle2 size={16} className="text-orange-600 flex-shrink-0 mt-0.5" />
-                    <span>Servicio disponible 24/7 para emergencias</span>
                   </li>
                 </ul>
               </div>
@@ -200,7 +171,9 @@ const Contactanos: React.FC = () => {
                         value={formData.nombre}
                         onChange={handleChange}
                         required
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none transition-all"
+                        onFocus={(e) => e.currentTarget.style.boxShadow = '0 0 0 2px rgba(219, 127, 58, 0.5)'}
+                        onBlur={(e) => e.currentTarget.style.boxShadow = ''}
                         placeholder="Tu nombre completo"
                       />
                     </div>
@@ -216,48 +189,30 @@ const Contactanos: React.FC = () => {
                         value={formData.email}
                         onChange={handleChange}
                         required
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none transition-all"
+                        onFocus={(e) => e.currentTarget.style.boxShadow = '0 0 0 2px rgba(219, 127, 58, 0.5)'}
+                        onBlur={(e) => e.currentTarget.style.boxShadow = ''}
                         placeholder="tu@email.com"
                       />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label htmlFor="telefono" className="block text-sm font-medium text-gray-700 mb-2">
-                        Teléfono *
-                      </label>
-                      <input
-                        type="tel"
-                        id="telefono"
-                        name="telefono"
-                        value={formData.telefono}
-                        onChange={handleChange}
-                        required
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all"
-                        placeholder="+502 1234-5678"
-                      />
-                    </div>
-
-                    <div>
-                      <label htmlFor="tipoServicio" className="block text-sm font-medium text-gray-700 mb-2">
-                        Tipo de Servicio
-                      </label>
-                      <select
-                        id="tipoServicio"
-                        name="tipoServicio"
-                        value={formData.tipoServicio}
-                        onChange={handleChange}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all bg-white"
-                      >
-                        <option value="">Selecciona un servicio</option>
-                        {tiposServicio.map((servicio) => (
-                          <option key={servicio} value={servicio}>
-                            {servicio}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                  <div>
+                    <label htmlFor="telefono" className="block text-sm font-medium text-gray-700 mb-2">
+                      Teléfono *
+                    </label>
+                    <input
+                      type="tel"
+                      id="telefono"
+                      name="telefono"
+                      value={formData.telefono}
+                      onChange={handleChange}
+                      required
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none transition-all"
+                      onFocus={(e) => e.currentTarget.style.boxShadow = '0 0 0 2px rgba(219, 127, 58, 0.5)'}
+                      onBlur={(e) => e.currentTarget.style.boxShadow = ''}
+                      placeholder="+502 1234-5678"
+                    />
                   </div>
 
                   <div>
@@ -271,14 +226,19 @@ const Contactanos: React.FC = () => {
                       onChange={handleChange}
                       required
                       rows={6}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all resize-none"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none transition-all resize-none"
+                      onFocus={(e) => e.currentTarget.style.boxShadow = '0 0 0 2px rgba(219, 127, 58, 0.5)'}
+                      onBlur={(e) => e.currentTarget.style.boxShadow = ''}
                       placeholder="Cuéntanos sobre tu necesidad o consulta..."
                     />
                   </div>
 
                   <button
                     type="submit"
-                    className="w-full px-6 py-4 bg-orange-600 text-white rounded-lg font-semibold hover:bg-orange-700 transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
+                    className="w-full px-6 py-4 text-white rounded-lg font-semibold transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
+                    style={{ backgroundColor: '#db7f3a' }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#c46f2f'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#db7f3a'}
                   >
                     <Send size={20} />
                     Enviar Mensaje
@@ -299,7 +259,7 @@ const Contactanos: React.FC = () => {
             </h2>
             <div className="rounded-xl overflow-hidden shadow-xl border-2 border-gray-200">
               <iframe
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3860.758123456789!2d-90.5069!3d14.6349!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMTTCsDM4JzA1LjYiTiA5MMKwMzAnMjQuOCJX!5e0!3m2!1ses!2sgt!4v1234567890123!5m2!1ses!2sgt"
+                src="https://www.google.com/maps?q=35+Calle+A+9-44,+Zona+11,+Colonia+Las+Charcas,+Guatemala+City,+Guatemala&output=embed&hl=es"
                 width="100%"
                 height="450"
                 style={{ border: 0 }}
@@ -311,7 +271,7 @@ const Contactanos: React.FC = () => {
               ></iframe>
             </div>
             <p className="text-sm text-gray-500 mt-4 text-center">
-              Ciudad de Guatemala, Guatemala
+              35 Calle A 9-44, Z-11 Colonia Las Charcas, Guatemala
             </p>
           </div>
         </div>

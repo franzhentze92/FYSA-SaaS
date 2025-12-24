@@ -2,16 +2,20 @@ import React, { useState, useMemo } from 'react';
 import { Receipt, Plus, Search, Edit, Trash2, Eye, Download, FileText } from 'lucide-react';
 import { useFacturas } from '@/hooks/useFacturas';
 import { useAllReportes } from '@/hooks/useAllReportes';
+import { useAdminServicios } from '@/hooks/useAdminServicios';
 import AddFacturaModal from '@/components/facturas/AddFacturaModal';
 import { Factura } from '@/types/factura';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
 
 const Facturas: React.FC = () => {
   const { facturas, agregarFactura, actualizarFactura, eliminarFactura } = useFacturas();
   const { reportes } = useAllReportes();
+  const { clientes } = useAdminServicios();
   const [showModal, setShowModal] = useState(false);
   const [editingFactura, setEditingFactura] = useState<Factura | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Verificar si el usuario es admin
   const currentUser = React.useMemo(() => {
@@ -51,33 +55,57 @@ const Facturas: React.FC = () => {
     setShowModal(true);
   };
 
-  const handleDelete = (facturaId: string) => {
+  const handleDelete = async (facturaId: string) => {
     if (window.confirm('¿Estás seguro de que deseas eliminar esta factura?')) {
-      eliminarFactura(facturaId);
+      try {
+        await eliminarFactura(facturaId);
+        toast.success('Factura eliminada correctamente');
+      } catch (error) {
+        toast.error('Error al eliminar la factura');
+        console.error(error);
+      }
     }
   };
 
-  const handleSubmit = (factura: Omit<Factura, 'id' | 'fechaCreacion' | 'fechaModificacion'>) => {
-    if (editingFactura) {
-      actualizarFactura(editingFactura.id, factura);
-    } else {
-      agregarFactura(factura);
+  const handleSubmit = async (factura: Omit<Factura, 'id' | 'fechaCreacion' | 'fechaModificacion'>) => {
+    setIsSubmitting(true);
+    try {
+      if (editingFactura) {
+        await actualizarFactura(editingFactura.id, factura);
+        toast.success('Factura actualizada correctamente');
+      } else {
+        await agregarFactura(factura);
+        toast.success('Factura creada correctamente');
+      }
+      setShowModal(false);
+      setEditingFactura(null);
+    } catch (error) {
+      toast.error('Error al guardar la factura');
+      console.error(error);
+    } finally {
+      setIsSubmitting(false);
     }
-    setShowModal(false);
-    setEditingFactura(null);
   };
 
   const handleViewPDF = (factura: Factura) => {
     if (factura.archivo) {
-      const byteCharacters = atob(factura.archivo.contenido);
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      // If we have a URL from Supabase storage, use it directly
+      if ((factura.archivo as any).url) {
+        window.open((factura.archivo as any).url, '_blank');
+        return;
       }
-      const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
+      // Fallback to base64 content
+      if (factura.archivo.contenido) {
+        const byteCharacters = atob(factura.archivo.contenido);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+      }
     }
   };
 
@@ -178,6 +206,9 @@ const Facturas: React.FC = () => {
                       Número de Factura
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Cliente
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Reporte Asociado
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -192,7 +223,9 @@ const Facturas: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {facturasFiltradas.map((factura) => (
+                  {facturasFiltradas.map((factura) => {
+                    const facturaCliente = clientes.find(c => c.email === factura.clienteEmail);
+                    return (
                     <tr key={factura.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3">
                         <span className="text-sm font-medium text-gray-900">
@@ -203,6 +236,20 @@ const Facturas: React.FC = () => {
                         <span className="text-sm font-medium text-gray-900">
                           {factura.numeroFactura}
                         </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {facturaCliente ? (
+                          <div>
+                            <span className="text-sm font-medium text-gray-900">
+                              {facturaCliente.nombre}
+                            </span>
+                            <p className="text-xs text-gray-500">{facturaCliente.email}</p>
+                          </div>
+                        ) : factura.clienteEmail ? (
+                          <span className="text-sm text-gray-700">{factura.clienteEmail}</span>
+                        ) : (
+                          <span className="text-xs text-gray-400">-</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         {(() => {
@@ -298,7 +345,8 @@ const Facturas: React.FC = () => {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -315,11 +363,14 @@ const Facturas: React.FC = () => {
         <AddFacturaModal
           isOpen={showModal}
           onClose={() => {
-            setShowModal(false);
-            setEditingFactura(null);
+            if (!isSubmitting) {
+              setShowModal(false);
+              setEditingFactura(null);
+            }
           }}
           onSubmit={handleSubmit}
           existingFactura={editingFactura || undefined}
+          isLoading={isSubmitting}
         />
       </div>
     </div>

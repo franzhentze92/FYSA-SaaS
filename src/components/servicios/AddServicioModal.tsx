@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { X, Upload, FileText, XCircle } from 'lucide-react';
+import { X, Upload, FileText, XCircle, Loader2 } from 'lucide-react';
 import { DocumentoServicio } from '@/types/servicio';
 
 interface AddServicioModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (documento: Omit<DocumentoServicio, 'id' | 'fechaCreacion' | 'fechaModificacion' | 'servicioId'>) => void;
+  onSubmit: (documento: Omit<DocumentoServicio, 'id' | 'fechaCreacion' | 'fechaModificacion' | 'servicioId'>) => Promise<void> | void;
   existingDocumento?: DocumentoServicio;
+  isLoading?: boolean;
 }
 
 const AddServicioModal: React.FC<AddServicioModalProps> = ({
@@ -14,6 +15,7 @@ const AddServicioModal: React.FC<AddServicioModalProps> = ({
   onClose,
   onSubmit,
   existingDocumento,
+  isLoading = false,
 }) => {
   const [fechaServicio, setFechaServicio] = useState(new Date().toISOString().split('T')[0]);
   const [numeroReporte, setNumeroReporte] = useState('');
@@ -211,15 +213,24 @@ const AddServicioModal: React.FC<AddServicioModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2.5 border rounded-lg font-medium hover:bg-gray-50"
+              disabled={isLoading}
+              className="flex-1 py-2.5 border rounded-lg font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="flex-1 py-2.5 bg-slate-800 text-white rounded-lg font-medium hover:bg-slate-900"
+              disabled={isLoading}
+              className="flex-1 py-2.5 bg-slate-800 text-white rounded-lg font-medium hover:bg-slate-900 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {existingDocumento ? 'Actualizar' : 'Agregar'} Servicio
+              {isLoading ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                <>{existingDocumento ? 'Actualizar' : 'Agregar'} Servicio</>
+              )}
             </button>
           </div>
         </form>

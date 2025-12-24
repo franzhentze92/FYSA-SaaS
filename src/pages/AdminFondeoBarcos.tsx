@@ -1,15 +1,35 @@
 import React, { useState, useMemo } from 'react';
-import { Ship, Plus, Search, X, Users, Calendar, FileText } from 'lucide-react';
+import { Ship, Plus, Search, X, Users, Calendar, FileText, Trash2 } from 'lucide-react';
 import { useAdminServicios } from '@/hooks/useAdminServicios';
 import { useBarcos } from '@/hooks/useBarcos';
 import { useCatalogos } from '@/hooks/useCatalogos';
-import { Barco } from '@/types/grain';
+import { Barco, GRAIN_TYPES, PEST_TYPES } from '@/types/grain';
 import { format } from 'date-fns';
+import { v4 as uuidv4 } from 'uuid';
 
 const AdminFondeoBarcos: React.FC = () => {
   const { clientes } = useAdminServicios();
   const { barcos, addBarco, updateBarco, deleteBarco } = useBarcos();
-  const { barcosMaestros } = useCatalogos();
+  const { barcosMaestros, getVariedadesByTipoGrano } = useCatalogos();
+
+  // Verificar si el usuario es admin
+  const currentUser = React.useMemo(() => {
+    const userJson = localStorage.getItem('fysa-current-user');
+    if (!userJson) return null;
+    try {
+      return JSON.parse(userJson);
+    } catch {
+      return null;
+    }
+  }, []);
+  const isAdmin = currentUser?.role === 'admin';
+  const userEmail = currentUser?.email || '';
+
+  // Si no es admin, obtener el cliente correspondiente al email del usuario
+  const clienteUsuario = React.useMemo(() => {
+    if (isAdmin) return null;
+    return clientes.find(c => c.email.toLowerCase() === userEmail.toLowerCase());
+  }, [isAdmin, clientes, userEmail]);
 
   const [selectedCliente, setSelectedCliente] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -19,6 +39,7 @@ const AdminFondeoBarcos: React.FC = () => {
     fechaFondeo: new Date().toISOString().split('T')[0],
     barcoMaestroId: '',
     granos: [] as Array<{
+      id: string;
       tipoGrano: string;
       variedadId?: string;
       cantidad: number;
@@ -31,16 +52,27 @@ const AdminFondeoBarcos: React.FC = () => {
     notas: '',
   });
 
+  // Si no es admin, establecer automáticamente el cliente seleccionado
+  React.useEffect(() => {
+    if (!isAdmin && clienteUsuario) {
+      setSelectedCliente(clienteUsuario.id);
+    }
+  }, [isAdmin, clienteUsuario]);
+
   // Obtener barcos del cliente seleccionado
   const barcosDelCliente = useMemo(() => {
-    if (!selectedCliente) return barcos;
-    const cliente = clientes.find(c => c.id === selectedCliente);
-    if (!cliente) return [];
-    // Filtrar barcos asignados a este cliente
-    return barcos.filter(b => {
-      return (b as any).clienteEmail === cliente.email;
-    });
-  }, [selectedCliente, barcos, clientes]);
+    if (isAdmin) {
+      // Admin: filtrar por cliente seleccionado o mostrar todos
+      if (!selectedCliente) return barcos;
+      const cliente = clientes.find(c => c.id === selectedCliente);
+      if (!cliente) return [];
+      return barcos.filter(b => (b as any).clienteEmail === cliente.email);
+    } else {
+      // Cliente: solo ver sus propios fondeos
+      if (!clienteUsuario) return [];
+      return barcos.filter(b => (b as any).clienteEmail === clienteUsuario.email);
+    }
+  }, [selectedCliente, barcos, clientes, isAdmin, clienteUsuario]);
 
   // Filtrar barcos por búsqueda
   const barcosFiltrados = useMemo(() => {
@@ -72,9 +104,17 @@ const AdminFondeoBarcos: React.FC = () => {
 
     const barcoData: Omit<Barco, 'id'> = {
       fechaFondeo: newBarco.fechaFondeo,
-      barcoMaestroId: newBarco.barcoMaestroId,
-      granos: newBarco.granos,
-      muestras: newBarco.muestras,
+      barcoId: newBarco.barcoMaestroId,
+      granos: newBarco.granos.map(g => ({
+        id: g.id || uuidv4(),
+        tipoGrano: g.tipoGrano,
+        variedadId: g.variedadId,
+        cantidad: g.cantidad,
+      })),
+      muestreoInsectos: newBarco.muestras.map(m => ({
+        pestType: m.tipoInsecto,
+        count: m.cantidad,
+      })),
       requiereTratamientoOIRSA: newBarco.requiereTratamientoOIRSA,
       notas: newBarco.notas || undefined,
       clienteEmail: cliente.email, // Agregar email del cliente
@@ -129,7 +169,7 @@ const AdminFondeoBarcos: React.FC = () => {
   const handleAddGrano = () => {
     setNewBarco({
       ...newBarco,
-      granos: [...newBarco.granos, { tipoGrano: '', cantidad: 0 }],
+      granos: [...newBarco.granos, { id: uuidv4(), tipoGrano: 'Trigo', cantidad: 0 }],
     });
   };
 
@@ -143,6 +183,10 @@ const AdminFondeoBarcos: React.FC = () => {
   const handleUpdateGrano = (index: number, field: string, value: any) => {
     const updatedGranos = [...newBarco.granos];
     updatedGranos[index] = { ...updatedGranos[index], [field]: value };
+    // Reset variety when grain type changes
+    if (field === 'tipoGrano') {
+      updatedGranos[index].variedadId = undefined;
+    }
     setNewBarco({ ...newBarco, granos: updatedGranos });
   };
 
@@ -166,8 +210,22 @@ const AdminFondeoBarcos: React.FC = () => {
     setNewBarco({ ...newBarco, muestras: updatedMuestras });
   };
 
-  const clienteSeleccionado = clientes.find(c => c.id === selectedCliente);
-  const barcosDisponibles = barcosMaestros.filter(b => b.activo);
+  // Obtener cliente seleccionado (para admin) o cliente del usuario (para no-admin)
+  const clienteSeleccionado = React.useMemo(() => {
+    if (isAdmin) {
+      return clientes.find(c => c.id === selectedCliente);
+    } else {
+      return clienteUsuario;
+    }
+  }, [isAdmin, selectedCliente, clientes, clienteUsuario]);
+  
+  // Filter ships by selected client's email
+  const barcosDisponibles = useMemo(() => {
+    if (!clienteSeleccionado) return [];
+    return barcosMaestros.filter(b => 
+      b.activo && b.clienteEmail === clienteSeleccionado.email
+    );
+  }, [barcosMaestros, clienteSeleccionado]);
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -183,56 +241,58 @@ const AdminFondeoBarcos: React.FC = () => {
           </p>
         </div>
 
-        {/* Selector de Cliente */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-          <div className="flex items-center justify-between">
-            <div className="flex-1 max-w-md">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Cliente
-              </label>
-              <select
-                value={selectedCliente}
-                onChange={(e) => setSelectedCliente(e.target.value)}
-                className="w-full border rounded-lg p-2.5"
-              >
-                <option value="">Todos los clientes</option>
-                {clientes.map((cliente) => (
-                  <option key={cliente.id} value={cliente.id}>
-                    {cliente.nombre} ({cliente.email})
-                  </option>
-                ))}
-              </select>
+        {/* Selector de Cliente - Solo visible para admin */}
+        {isAdmin && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+            <div className="flex items-center justify-between">
+              <div className="flex-1 max-w-md">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Cliente
+                </label>
+                <select
+                  value={selectedCliente}
+                  onChange={(e) => setSelectedCliente(e.target.value)}
+                  className="w-full border rounded-lg p-2.5"
+                >
+                  <option value="">Todos los clientes</option>
+                  {clientes.map((cliente) => (
+                    <option key={cliente.id} value={cliente.id}>
+                      {cliente.nombre} ({cliente.email})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="ml-4">
+                <button
+                  onClick={() => {
+                    setEditingBarco(null);
+                    setNewBarco({
+                      fechaFondeo: new Date().toISOString().split('T')[0],
+                      barcoMaestroId: '',
+                      granos: [],
+                      muestras: [],
+                      requiereTratamientoOIRSA: false,
+                      notas: '',
+                    });
+                    setShowAddModal(true);
+                  }}
+                  disabled={!selectedCliente}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Plus size={18} />
+                  Agregar Fondeo
+                </button>
+              </div>
             </div>
-            <div className="ml-4">
-              <button
-                onClick={() => {
-                  setEditingBarco(null);
-                  setNewBarco({
-                    fechaFondeo: new Date().toISOString().split('T')[0],
-                    barcoMaestroId: '',
-                    granos: [],
-                    muestras: [],
-                    requiereTratamientoOIRSA: false,
-                    notas: '',
-                  });
-                  setShowAddModal(true);
-                }}
-                disabled={!selectedCliente}
-                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Plus size={18} />
-                Agregar Fondeo
-              </button>
-            </div>
+            {selectedCliente && clienteSeleccionado && (
+              <div className="mt-4 pt-4 border-t">
+                <p className="text-sm text-gray-600">
+                  <span className="font-medium">Cliente seleccionado:</span> {clienteSeleccionado.nombre}
+                </p>
+              </div>
+            )}
           </div>
-          {selectedCliente && clienteSeleccionado && (
-            <div className="mt-4 pt-4 border-t">
-              <p className="text-sm text-gray-600">
-                <span className="font-medium">Cliente seleccionado:</span> {clienteSeleccionado.nombre}
-              </p>
-            </div>
-          )}
-        </div>
+        )}
 
         {/* Tabla de Barcos */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -286,9 +346,12 @@ const AdminFondeoBarcos: React.FC = () => {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Tratamiento OIRSA
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Acciones
-                    </th>
+                    {/* Columna Acciones - Solo visible para admin */}
+                    {isAdmin && (
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Acciones
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -331,24 +394,27 @@ const AdminFondeoBarcos: React.FC = () => {
                               </span>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                onClick={() => handleEdit(barco)}
-                                className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                title="Editar"
-                              >
-                                <FileText size={16} />
-                              </button>
-                              <button
-                                onClick={() => handleDelete(barco.id)}
-                                className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                title="Eliminar"
-                              >
-                                <X size={16} />
-                              </button>
-                            </div>
-                          </td>
+                          {/* Columna Acciones - Solo visible para admin */}
+                          {isAdmin && (
+                            <td className="px-4 py-3 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => handleEdit(barco)}
+                                  className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                  title="Editar"
+                                >
+                                  <FileText size={16} />
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(barco.id)}
+                                  className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                  title="Eliminar"
+                                >
+                                  <X size={16} />
+                                </button>
+                              </div>
+                            </td>
+                          )}
                         </tr>
                       );
                     })}
@@ -385,36 +451,7 @@ const AdminFondeoBarcos: React.FC = () => {
                 </button>
               </div>
               <div className="p-6 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Fecha de Fondeo *
-                  </label>
-                  <input
-                    type="date"
-                    value={newBarco.fechaFondeo}
-                    onChange={(e) => setNewBarco({ ...newBarco, fechaFondeo: e.target.value })}
-                    className="w-full border rounded-lg p-2.5"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Barco *
-                  </label>
-                  <select
-                    value={newBarco.barcoMaestroId}
-                    onChange={(e) => setNewBarco({ ...newBarco, barcoMaestroId: e.target.value })}
-                    className="w-full border rounded-lg p-2.5"
-                    required
-                  >
-                    <option value="">Selecciona un barco</option>
-                    {barcosDisponibles.map((barco) => (
-                      <option key={barco.id} value={barco.id}>
-                        {barco.nombre}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {/* Cliente info */}
                 {selectedCliente && clienteSeleccionado && (
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                     <p className="text-sm text-blue-800">
@@ -422,91 +459,207 @@ const AdminFondeoBarcos: React.FC = () => {
                     </p>
                   </div>
                 )}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Granos
-                  </label>
-                  <div className="space-y-2">
-                    {newBarco.granos.map((grano, index) => (
-                      <div key={index} className="flex gap-2 items-end">
-                        <div className="flex-1">
-                          <input
-                            type="text"
-                            value={grano.tipoGrano}
-                            onChange={(e) => handleUpdateGrano(index, 'tipoGrano', e.target.value)}
-                            placeholder="Tipo de grano"
-                            className="w-full border rounded-lg p-2.5 text-sm"
-                          />
-                        </div>
-                        <div className="w-32">
-                          <input
-                            type="number"
-                            value={grano.cantidad}
-                            onChange={(e) => handleUpdateGrano(index, 'cantidad', parseFloat(e.target.value) || 0)}
-                            placeholder="Cantidad"
-                            className="w-full border rounded-lg p-2.5 text-sm"
-                          />
-                        </div>
-                        <button
-                          onClick={() => handleRemoveGrano(index)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded"
-                        >
-                          <X size={18} />
-                        </button>
-                      </div>
-                    ))}
+
+                {/* Información Básica */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Barco *
+                    </label>
+                    <select
+                      value={newBarco.barcoMaestroId}
+                      onChange={(e) => setNewBarco({ ...newBarco, barcoMaestroId: e.target.value })}
+                      className="w-full border rounded-lg p-2.5"
+                      required
+                    >
+                      <option value="">Seleccionar barco...</option>
+                      {barcosDisponibles.map((barco) => (
+                        <option key={barco.id} value={barco.id}>
+                          {barco.nombre}
+                        </option>
+                      ))}
+                    </select>
+                    {barcosDisponibles.length === 0 && (
+                      <p className="text-xs text-amber-600 mt-1">
+                        No hay barcos asignados a este cliente. Asigna barcos en el catálogo primero.
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Fecha de Fondeo *
+                    </label>
+                    <input
+                      type="date"
+                      value={newBarco.fechaFondeo}
+                      onChange={(e) => setNewBarco({ ...newBarco, fechaFondeo: e.target.value })}
+                      className="w-full border rounded-lg p-2.5"
+                      required
+                    />
+                  </div>
+                </div>
+                {/* Granos */}
+                <div className="border-t pt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Granos Transportados *
+                    </label>
                     <button
+                      type="button"
                       onClick={handleAddGrano}
-                      className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors"
                     >
                       <Plus size={16} />
                       Agregar Grano
                     </button>
                   </div>
+
+                  {newBarco.granos.length === 0 ? (
+                    <p className="text-sm text-gray-500 text-center py-4 bg-gray-50 rounded-lg">
+                      No se han agregado granos. Agrega al menos un tipo de grano.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {newBarco.granos.map((grano, index) => {
+                        const variedadesDisponibles = getVariedadesByTipoGrano(grano.tipoGrano, true);
+                        return (
+                          <div key={grano.id || index} className="flex gap-3 items-start bg-gray-50 p-3 rounded-lg border border-gray-200">
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-semibold text-gray-500">ID: {(grano.id || '').substring(0, 8).toUpperCase()}</span>
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">
+                                  Tipo de Grano
+                                </label>
+                                <select
+                                  value={grano.tipoGrano}
+                                  onChange={e => handleUpdateGrano(index, 'tipoGrano', e.target.value)}
+                                  className="w-full border rounded-lg p-2 text-sm"
+                                  required
+                                >
+                                  {GRAIN_TYPES.map(g => (
+                                    <option key={g} value={g}>{g}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              {variedadesDisponibles.length > 0 && (
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                                    Variedad (opcional)
+                                  </label>
+                                  <select
+                                    value={grano.variedadId || ''}
+                                    onChange={e => handleUpdateGrano(index, 'variedadId', e.target.value || undefined)}
+                                    className="w-full border rounded-lg p-2 text-sm"
+                                  >
+                                    <option value="">Sin variedad específica</option>
+                                    {variedadesDisponibles.map(v => (
+                                      <option key={v.id} value={v.id}>{v.variedad}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              )}
+                            </div>
+                            <div className="w-32">
+                              <label className="block text-xs font-medium text-gray-700 mb-1">
+                                Cantidad (ton)
+                              </label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={grano.cantidad}
+                                onChange={e => handleUpdateGrano(index, 'cantidad', parseFloat(e.target.value) || 0)}
+                                className="w-full border rounded-lg p-2 text-sm"
+                                required
+                                min="0"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveGrano(index)}
+                              className={`mt-6 p-2 rounded-lg transition-colors ${
+                                newBarco.granos.length === 1
+                                  ? 'text-gray-400 cursor-not-allowed'
+                                  : 'text-red-600 hover:bg-red-50'
+                              }`}
+                              disabled={newBarco.granos.length === 1}
+                              title={newBarco.granos.length === 1 ? 'Debe haber al menos un grano' : 'Eliminar grano'}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Muestras de Insectos
-                  </label>
-                  <div className="space-y-2">
-                    {newBarco.muestras.map((muestra, index) => (
-                      <div key={index} className="flex gap-2 items-end">
-                        <div className="flex-1">
-                          <input
-                            type="text"
-                            value={muestra.tipoInsecto}
-                            onChange={(e) => handleUpdateMuestra(index, 'tipoInsecto', e.target.value)}
-                            placeholder="Tipo de insecto"
-                            className="w-full border rounded-lg p-2.5 text-sm"
-                          />
-                        </div>
-                        <div className="w-32">
-                          <input
-                            type="number"
-                            value={muestra.cantidad}
-                            onChange={(e) => handleUpdateMuestra(index, 'cantidad', parseInt(e.target.value) || 0)}
-                            placeholder="Cantidad"
-                            className="w-full border rounded-lg p-2.5 text-sm"
-                          />
-                        </div>
-                        <button
-                          onClick={() => handleRemoveMuestra(index)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded"
-                        >
-                          <X size={18} />
-                        </button>
-                      </div>
-                    ))}
+                {/* Muestreo de Insectos */}
+                <div className="border-t pt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Muestreo de Insectos
+                    </label>
                     <button
+                      type="button"
                       onClick={handleAddMuestra}
-                      className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors"
                     >
                       <Plus size={16} />
                       Agregar Muestra
                     </button>
                   </div>
+
+                  {newBarco.muestras.length === 0 ? (
+                    <p className="text-sm text-gray-500 text-center py-4 bg-gray-50 rounded-lg">
+                      No se han agregado insectos. Si no se encontraron insectos, puede dejar esto vacío.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {newBarco.muestras.map((muestra, index) => (
+                        <div key={index} className="flex gap-3 items-start bg-gray-50 p-3 rounded-lg">
+                          <div className="flex-1">
+                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                              Tipo de Insecto
+                            </label>
+                            <select
+                              value={muestra.tipoInsecto}
+                              onChange={e => handleUpdateMuestra(index, 'tipoInsecto', e.target.value)}
+                              className="w-full border rounded-lg p-2 text-sm"
+                            >
+                              <option value="">Seleccionar...</option>
+                              {PEST_TYPES.map(pest => (
+                                <option key={pest.id} value={pest.name}>{pest.name}</option>
+                              ))}
+                              <option value="Otro">Otro</option>
+                            </select>
+                          </div>
+                          <div className="w-24">
+                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                              Cantidad
+                            </label>
+                            <input
+                              type="number"
+                              value={muestra.cantidad}
+                              onChange={e => handleUpdateMuestra(index, 'cantidad', parseInt(e.target.value) || 0)}
+                              className="w-full border rounded-lg p-2 text-sm"
+                              min="0"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveMuestra(index)}
+                            className="mt-6 p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div>
+                {/* Tratamiento OIRSA */}
+                <div className="border-t pt-4">
                   <label className="flex items-center gap-3 cursor-pointer">
                     <input
                       type="checkbox"
@@ -515,7 +668,7 @@ const AdminFondeoBarcos: React.FC = () => {
                       className="w-5 h-5 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
                     />
                     <span className="text-sm font-medium text-gray-700">
-                      Requiere tratamiento OIRSA
+                      Se requirió aplicación de tratamiento cuarentenario por OIRSA
                     </span>
                   </label>
                 </div>

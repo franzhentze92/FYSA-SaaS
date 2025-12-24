@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { DocumentoServicio } from '@/types/servicio';
+import { supabase } from '@/lib/supabase';
+import type { Database } from '@/types/supabase';
 
-const SERVICIOS_IDS = [148998, 148591, 136260, 136259, 136257, 136258, 136256];
+type DocumentoServicioDB = Database['public']['Tables']['documentos_servicio']['Row'];
 
 const SERVICIOS_MAESTROS = [
   { id: 148998, titulo: 'Aspersión en banda' },
@@ -11,67 +13,87 @@ const SERVICIOS_MAESTROS = [
   { id: 136257, titulo: 'Gas. y Encarpado' },
   { id: 136258, titulo: 'Control de Roedores' },
   { id: 136256, titulo: 'Servicios Generales' },
+  { id: 1362563, titulo: 'Trampas de Luz' },
+  { id: 1362564, titulo: 'Tratamiento de Contenedores' },
+  { id: 1362565, titulo: 'Fum. de Silo Vacío' },
+  { id: 1362566, titulo: 'Fum. Graneleras' },
 ];
 
 export interface ReporteConServicio extends DocumentoServicio {
   servicioTitulo: string;
+  clienteEmail?: string;
+  clienteNombre?: string;
 }
 
-const loadReportes = (): ReporteConServicio[] => {
-  const todosLosReportes: ReporteConServicio[] = [];
-  
-  SERVICIOS_IDS.forEach(servicioId => {
-    const saved = localStorage.getItem(`servicios-${servicioId}`);
-    if (saved) {
-      try {
-        const documentos: DocumentoServicio[] = JSON.parse(saved);
-        const servicio = SERVICIOS_MAESTROS.find(s => s.id === servicioId);
-        documentos.forEach(doc => {
-          todosLosReportes.push({
-            ...doc,
-            servicioTitulo: servicio?.titulo || `Servicio ${servicioId}`,
-          });
-        });
-      } catch (e) {
-        console.error(`Error parsing servicios-${servicioId}:`, e);
-      }
-    }
-  });
-
-  // Ordenar por fecha de servicio (más reciente primero)
-  todosLosReportes.sort((a, b) => 
-    new Date(b.fechaServicio).getTime() - new Date(a.fechaServicio).getTime()
-  );
-
-  return todosLosReportes;
-};
-
 export const useAllReportes = () => {
-  const [reportes, setReportes] = useState<ReporteConServicio[]>(() => loadReportes());
+  const [reportes, setReportes] = useState<ReporteConServicio[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // Cargar reportes inicialmente
-    setReportes(loadReportes());
+  const fetchReportes = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('documentos_servicio')
+        .select('*')
+        .order('fecha_servicio', { ascending: false });
 
-    // Escuchar cambios en localStorage
-    const handleStorageChange = () => {
-      setReportes(loadReportes());
-    };
+      if (error) throw error;
 
-    // Escuchar eventos de storage (cuando cambia en otra pestaña)
-    window.addEventListener('storage', handleStorageChange);
+      const formattedReportes: ReporteConServicio[] = ((data || []) as DocumentoServicioDB[]).map(doc => {
+        const servicio = SERVICIOS_MAESTROS.find(s => s.id === doc.servicio_id);
+        return {
+          id: doc.id,
+          servicioId: doc.servicio_id,
+          fechaServicio: doc.fecha_servicio,
+          numeroReporte: doc.numero_reporte,
+          notas: doc.notas,
+          fechaCreacion: doc.fecha_creacion,
+          fechaModificacion: doc.fecha_modificacion,
+          servicioTitulo: servicio?.titulo || `Servicio ${doc.servicio_id}`,
+          clienteEmail: doc.cliente_email || undefined,
+          clienteNombre: doc.cliente_nombre || undefined,
+          archivo: doc.archivo_url ? {
+            nombre: doc.archivo_nombre || 'documento.pdf',
+            tipo: 'application/pdf',
+            tamaño: 0,
+            contenido: '',
+            url: doc.archivo_url,
+          } : undefined,
+        };
+      });
 
-    // Polling para detectar cambios en la misma pestaña
-    const interval = setInterval(() => {
-      setReportes(loadReportes());
-    }, 1000); // Verificar cada segundo
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      clearInterval(interval);
-    };
+      setReportes(formattedReportes);
+    } catch (err) {
+      console.error('Error fetching reportes:', err);
+    }
   }, []);
 
-  return { reportes };
-};
+  // Initial fetch
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      await fetchReportes();
+      setLoading(false);
+    };
+    loadData();
+  }, [fetchReportes]);
 
+  // Real-time subscription
+  useEffect(() => {
+    const subscription = supabase
+      .channel('all-reportes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'documentos_servicio' }, () => {
+        fetchReportes();
+      })
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [fetchReportes]);
+
+  return { 
+    reportes, 
+    loading,
+    refetch: fetchReportes,
+  };
+};

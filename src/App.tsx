@@ -12,6 +12,8 @@ import ScrollToTop from "@/components/ScrollToTop";
 import Landing from "./pages/Landing";
 import SobreNosotros from "./pages/SobreNosotros";
 import ServiciosLanding from "./pages/ServiciosLanding";
+import Tienda from "./pages/Tienda";
+import Carrito from "./pages/Carrito";
 import Contactanos from "./pages/Contactanos";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -20,9 +22,7 @@ import Barcos from "./pages/Barcos";
 import HistorialLotes from "./pages/HistorialLotes";
 import BarcosMaestros from "./pages/BarcosMaestros";
 import GranosVariedades from "./pages/GranosVariedades";
-import DocumentacionAuditoria from "./pages/DocumentacionAuditoria";
-import DocumentacionTecnicos from "./pages/DocumentacionTecnicos";
-import DocumentacionCroquis from "./pages/DocumentacionCroquis";
+import Documentacion from "./pages/Documentacion";
 import Servicios from "./pages/Servicios";
 import ServicioDetalle from "./pages/ServicioDetalle";
 import Facturas from "./pages/Facturas";
@@ -39,8 +39,19 @@ import AdminFacturas from "./pages/AdminFacturas";
 import AdminBarcos from "./pages/AdminBarcos";
 import AdminFondeoBarcos from "./pages/AdminFondeoBarcos";
 import AdminSilosLotes from "./pages/AdminSilosLotes";
+import AnalisisFumigacionAprovigra from "./pages/AnalisisFumigacionAprovigra";
+import AdminMonitoreoGranosAP from "./pages/AdminMonitoreoGranosAP";
+import HistorialPerdida from "./pages/HistorialPerdida";
+import FumigacionSilos from "./pages/FumigacionSilos";
+import DashboardMonitoreoGranos from "./pages/DashboardMonitoreoGranos";
+import AdminMapasCalor from "./pages/AdminMapasCalor";
+import AdminTienda from "./pages/AdminTienda";
+import ControlRoedores from "./pages/ControlRoedores";
+import ControlInsectosVoladores from "./pages/ControlInsectosVoladores";
+import InsectosID from "./pages/InsectosID";
 import NotFound from "./pages/NotFound";
 import { AppProvider } from "@/contexts/AppContext";
+import { CartProvider } from "@/contexts/CartContext";
 import { initializeUsers } from "@/services/userService";
 
 const queryClient = new QueryClient();
@@ -57,13 +68,16 @@ const App = () => (
         <BrowserRouter>
           <ScrollToTop />
           <AppProvider>
-            <Routes>
-              {/* Public Routes */}
-              <Route path="/" element={<PublicLayout><Landing /></PublicLayout>} />
-              <Route path="/sobre-nosotros" element={<PublicLayout><SobreNosotros /></PublicLayout>} />
-              <Route path="/servicios" element={<PublicLayout><ServiciosLanding /></PublicLayout>} />
-              <Route path="/contactanos" element={<PublicLayout><Contactanos /></PublicLayout>} />
-              <Route path="/login" element={<Login />} />
+            <CartProvider>
+              <Routes>
+                {/* Public Routes */}
+                <Route path="/" element={<PublicLayout><Landing /></PublicLayout>} />
+                <Route path="/sobre-nosotros" element={<PublicLayout><SobreNosotros /></PublicLayout>} />
+                <Route path="/servicios" element={<PublicLayout><ServiciosLanding /></PublicLayout>} />
+                <Route path="/tienda" element={<PublicLayout><Tienda /></PublicLayout>} />
+                <Route path="/carrito" element={<PublicLayout><Carrito /></PublicLayout>} />
+                <Route path="/contactanos" element={<PublicLayout><Contactanos /></PublicLayout>} />
+                <Route path="/login" element={<Login />} />
 
               {/* Protected Routes */}
               <Route
@@ -127,31 +141,11 @@ const App = () => (
                 }
               />
               <Route
-                path="/documentacion-auditoria"
+                path="/documentacion"
                 element={
                   <ProtectedRoute>
                     <MainLayout>
-                      <DocumentacionAuditoria />
-                    </MainLayout>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/documentacion-tecnicos"
-                element={
-                  <ProtectedRoute>
-                    <MainLayout>
-                      <DocumentacionTecnicos />
-                    </MainLayout>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/documentacion-croquis"
-                element={
-                  <ProtectedRoute>
-                    <MainLayout>
-                      <DocumentacionCroquis />
+                      <Documentacion />
                     </MainLayout>
                   </ProtectedRoute>
                 }
@@ -257,6 +251,26 @@ const App = () => (
                       }
                     />
                     <Route
+                      path="/mapas-calor/control-roedores"
+                      element={
+                        <ProtectedRoute>
+                          <MainLayout>
+                            <ControlRoedores />
+                          </MainLayout>
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/mapas-calor/control-insectos-voladores"
+                      element={
+                        <ProtectedRoute>
+                          <MainLayout>
+                            <ControlInsectosVoladores />
+                          </MainLayout>
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
                       path="/admin/servicios"
                       element={
                         <ProtectedRoute>
@@ -272,6 +286,26 @@ const App = () => (
                         <ProtectedRoute>
                           <MainLayout>
                             <AdminReportesServicios />
+                          </MainLayout>
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/admin/mapas-calor"
+                      element={
+                        <ProtectedRoute>
+                          <MainLayout>
+                            <AdminMapasCalor />
+                          </MainLayout>
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/admin/tienda"
+                      element={
+                        <ProtectedRoute>
+                          <MainLayout>
+                            <AdminTienda />
                           </MainLayout>
                         </ProtectedRoute>
                       }
@@ -316,8 +350,71 @@ const App = () => (
                         </ProtectedRoute>
                       }
                     />
+                    <Route
+                      path="/analisis/fumigacion-aprovigra"
+                      element={
+                        <ProtectedRoute>
+                          <MainLayout>
+                            <AnalisisFumigacionAprovigra />
+                          </MainLayout>
+                        </ProtectedRoute>
+                      }
+                    />
+              <Route
+                path="/admin/dashboard-monitoreo-granos"
+                element={
+                  <ProtectedRoute>
+                    <MainLayout>
+                      <DashboardMonitoreoGranos />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/monitoreo-granos-ap"
+                element={
+                  <ProtectedRoute>
+                    <MainLayout>
+                      <AdminMonitoreoGranosAP />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
+                    <Route
+                      path="/admin/historial-perdida"
+                      element={
+                        <ProtectedRoute>
+                          <MainLayout>
+                            <HistorialPerdida />
+                          </MainLayout>
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/admin/fumigacion-silos"
+                      element={
+                        <ProtectedRoute>
+                          <MainLayout>
+                            <FumigacionSilos />
+                          </MainLayout>
+                        </ProtectedRoute>
+                      }
+                    />
+                    {/* Temporarily hidden - Insectos ID page
+                    <Route
+                      path="/insectos-id"
+                      element={
+                        <ProtectedRoute>
+                          <MainLayout>
+                            <InsectosID />
+                          </MainLayout>
+                        </ProtectedRoute>
+                      }
+                    />
+                    */}
                     <Route path="*" element={<PublicLayout><NotFound /></PublicLayout>} />
-            </Routes>
+              </Routes>
+            </CartProvider>
           </AppProvider>
         </BrowserRouter>
       </TooltipProvider>

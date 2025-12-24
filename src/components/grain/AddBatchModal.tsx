@@ -71,13 +71,13 @@ const AddBatchModal: React.FC<AddBatchModalProps> = ({
     }
   }, [existingBatch, isOpen]);
   
-  // Resetear granoId cuando cambia el barco
+  // Resetear granoId cuando cambia el barco (solo si no estamos editando)
   useEffect(() => {
-    if (barcoId && !granosDisponibles.find(g => g.id === granoId)) {
+    if (!existingBatch && barcoId && !granosDisponibles.find(g => g.id === granoId)) {
       setGranoId('');
       setVariedadId('');
     }
-  }, [barcoId, granosDisponibles, granoId]);
+  }, [barcoId, granosDisponibles, granoId, existingBatch]);
   
   // Resetear variedadId cuando cambia el tipo de grano
   useEffect(() => {
@@ -99,20 +99,56 @@ const AddBatchModal: React.FC<AddBatchModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!barcoSeleccionado || !granoSeleccionado) return;
     
-    onSubmit({
-      barcoId: barcoSeleccionado.id,
-      granoId: granoSeleccionado.id,
-      grainType: granoSeleccionado.tipoGrano,
-      variedadId: variedadId || undefined,
-      grainSubtype: variedadNombre || undefined,
-      quantity,
-      unit,
-      origin: nombreBarco,
-      entryDate,
-      notes: notes || undefined,
-    });
+    // Si estamos editando, usar los valores del existingBatch como fallback
+    if (existingBatch) {
+      // Usar los valores del batch existente para barco y grano
+      const barcoIdFinal = barcoId || existingBatch.barcoId;
+      const granoIdFinal = granoId || existingBatch.granoId;
+      const barcoFinal = barcoIdFinal ? getBarcoById(barcoIdFinal) : null;
+      const granosDisponiblesFinal = barcoFinal?.granos || [];
+      const granoFinal = granosDisponiblesFinal.find(g => g.id === granoIdFinal) || 
+                         granosDisponiblesFinal.find(g => g.id === existingBatch.granoId);
+      
+      if (!barcoIdFinal || !granoIdFinal) {
+        console.error('Error: No se pudo determinar barco o grano del batch existente');
+        return;
+      }
+      
+      const nombreBarcoFinal = barcoFinal 
+        ? getBarcoMaestroById(barcoFinal.barcoId)?.nombre || existingBatch.origin
+        : existingBatch.origin;
+      
+      onSubmit({
+        barcoId: barcoIdFinal,
+        granoId: granoIdFinal,
+        grainType: granoFinal?.tipoGrano || existingBatch.grainType,
+        variedadId: variedadId || existingBatch.variedadId || undefined,
+        grainSubtype: variedadNombre || existingBatch.grainSubtype || undefined,
+        quantity,
+        unit,
+        origin: nombreBarcoFinal,
+        entryDate,
+        notes: notes || undefined,
+      });
+    } else {
+      // Si no estamos editando, validar que los campos estén seleccionados
+      if (!barcoSeleccionado || !granoSeleccionado) return;
+      
+      onSubmit({
+        barcoId: barcoSeleccionado.id,
+        granoId: granoSeleccionado.id,
+        grainType: granoSeleccionado.tipoGrano,
+        variedadId: variedadId || undefined,
+        grainSubtype: variedadNombre || undefined,
+        quantity,
+        unit,
+        origin: nombreBarco,
+        entryDate,
+        notes: notes || undefined,
+      });
+    }
+    
     onClose();
   };
 
@@ -146,13 +182,14 @@ const AddBatchModal: React.FC<AddBatchModalProps> = ({
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Barco *
+              Barco {existingBatch ? '' : '*'}
             </label>
             <select
               value={barcoId}
               onChange={e => setBarcoId(e.target.value)}
-              className="w-full border rounded-lg p-2.5"
-              required
+              className={`w-full border rounded-lg p-2.5 ${existingBatch ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+              required={!existingBatch}
+              disabled={!!existingBatch}
             >
               <option value="">Seleccionar barco...</option>
               {[...barcos]
@@ -167,7 +204,12 @@ const AddBatchModal: React.FC<AddBatchModalProps> = ({
                   );
                 })}
             </select>
-            {barcos.length === 0 && (
+            {existingBatch && (
+              <p className="text-xs text-gray-500 mt-1">
+                El barco no se puede cambiar al editar un batch existente
+              </p>
+            )}
+            {barcos.length === 0 && !existingBatch && (
               <p className="text-xs text-amber-600 mt-1">
                 No hay barcos registrados. Agrega barcos primero.
               </p>
@@ -177,14 +219,14 @@ const AddBatchModal: React.FC<AddBatchModalProps> = ({
           {barcoSeleccionado && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Grano del Barco *
+                Grano del Barco {existingBatch ? '' : '*'}
               </label>
               <select
                 value={granoId}
                 onChange={e => setGranoId(e.target.value)}
-                className="w-full border rounded-lg p-2.5"
-                required
-                disabled={granosDisponibles.length === 0}
+                className={`w-full border rounded-lg p-2.5 ${existingBatch ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+                required={!existingBatch}
+                disabled={!!existingBatch || granosDisponibles.length === 0}
               >
                 <option value="">Seleccionar grano...</option>
                 {granosDisponibles.map(grano => {
@@ -198,7 +240,12 @@ const AddBatchModal: React.FC<AddBatchModalProps> = ({
                   );
                 })}
               </select>
-              {granosDisponibles.length === 0 && (
+              {existingBatch && (
+                <p className="text-xs text-gray-500 mt-1">
+                  El grano no se puede cambiar al editar un batch existente
+                </p>
+              )}
+              {granosDisponibles.length === 0 && !existingBatch && (
                 <p className="text-xs text-amber-600 mt-1">
                   Este barco no tiene granos registrados.
                 </p>
@@ -213,7 +260,8 @@ const AddBatchModal: React.FC<AddBatchModalProps> = ({
                       <select
                         value={variedadId}
                         onChange={e => setVariedadId(e.target.value)}
-                        className="w-full border rounded-lg p-2 text-sm"
+                        className={`w-full border rounded-lg p-2 text-sm ${existingBatch ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+                        disabled={!!existingBatch}
                       >
                         <option value="">Sin variedad específica</option>
                         {variedadesDisponibles.map(variedad => (
@@ -222,6 +270,11 @@ const AddBatchModal: React.FC<AddBatchModalProps> = ({
                           </option>
                         ))}
                       </select>
+                      {existingBatch && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          La variedad no se puede cambiar al editar un batch existente
+                        </p>
+                      )}
                     </div>
                   )}
                   <div className="mt-2 p-2 bg-gray-50 rounded-lg text-xs">

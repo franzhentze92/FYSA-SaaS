@@ -19,12 +19,14 @@ const GranosVariedades: React.FC = () => {
   const [tipoGrano, setTipoGrano] = useState('Trigo');
   const [variedad, setVariedad] = useState('');
   const [activo, setActivo] = useState(true);
+  const [costoPorKg, setCostoPorKg] = useState<number | undefined>(undefined);
 
   const handleAdd = () => {
     setEditingVariedad(null);
     setTipoGrano('Trigo');
     setVariedad('');
     setActivo(true);
+    setCostoPorKg(undefined);
     setShowModal(true);
   };
 
@@ -33,6 +35,7 @@ const GranosVariedades: React.FC = () => {
     setTipoGrano(variedadItem.tipoGrano);
     setVariedad(variedadItem.variedad);
     setActivo(variedadItem.activo);
+    setCostoPorKg(variedadItem.costoPorKg);
     setShowModal(true);
   };
 
@@ -45,15 +48,16 @@ const GranosVariedades: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (editingVariedad) {
-      updateVariedadGrano(editingVariedad.id, { tipoGrano, variedad, activo });
+      updateVariedadGrano(editingVariedad.id, { tipoGrano, variedad, activo, costoPorKg });
     } else {
-      addVariedadGrano({ tipoGrano, variedad, activo });
+      addVariedadGrano({ tipoGrano, variedad, activo, costoPorKg });
     }
     setShowModal(false);
     setEditingVariedad(null);
     setTipoGrano('Trigo');
     setVariedad('');
     setActivo(true);
+    setCostoPorKg(undefined);
   };
 
   const handleCloseModal = () => {
@@ -62,6 +66,7 @@ const GranosVariedades: React.FC = () => {
     setTipoGrano('Trigo');
     setVariedad('');
     setActivo(true);
+    setCostoPorKg(undefined);
   };
 
   const tiposConVariedades = getTiposGranoConVariedades();
@@ -178,9 +183,19 @@ const GranosVariedades: React.FC = () => {
                           <div>
                             <p className="font-medium text-gray-900">{variedadItem.variedad}</p>
                             <p className="text-sm text-gray-500">{tipoData.tipo}</p>
+                            {variedadItem.costoPorKg != null && (
+                              <p className="text-xs text-emerald-600 font-medium mt-1">
+                                Q. {variedadItem.costoPorKg.toFixed(2)}/kg
+                              </p>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
+                          {variedadItem.costoPorKg != null && (
+                            <span className="text-sm text-gray-600">
+                              Costo: Q. {variedadItem.costoPorKg.toFixed(2)}/kg
+                            </span>
+                          )}
                           <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
                             variedadItem.activo
                               ? 'bg-green-100 text-green-800'
@@ -267,6 +282,23 @@ const GranosVariedades: React.FC = () => {
                     className="w-full border rounded-lg p-2.5"
                     required
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Costo por Kilogramo (Quetzales)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={costoPorKg ?? ''}
+                    onChange={(e) => setCostoPorKg(e.target.value ? parseFloat(e.target.value) : undefined)}
+                    placeholder="Ej: 0.35"
+                    className="w-full border rounded-lg p-2.5"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Usado para calcular Pérdida Económica Semanal
+                  </p>
                 </div>
                 <div>
                   <label className="flex items-center gap-3 cursor-pointer">

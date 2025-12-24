@@ -1,14 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Upload, FileText, XCircle, Search, Check } from 'lucide-react';
+import { X, Upload, FileText, XCircle, Search, Check, Loader2 } from 'lucide-react';
 import { Factura } from '@/types/factura';
 import { useAllReportes } from '@/hooks/useAllReportes';
+import { useFacturas } from '@/hooks/useFacturas';
 import { format } from 'date-fns';
 
 interface AddFacturaModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (factura: Omit<Factura, 'id' | 'fechaCreacion' | 'fechaModificacion'>) => void;
+  onSubmit: (factura: Omit<Factura, 'id' | 'fechaCreacion' | 'fechaModificacion'>) => Promise<void> | void;
   existingFactura?: Factura;
+  isLoading?: boolean;
+  clienteEmail?: string; // Filter reports by client email
 }
 
 const AddFacturaModal: React.FC<AddFacturaModalProps> = ({
@@ -16,8 +19,11 @@ const AddFacturaModal: React.FC<AddFacturaModalProps> = ({
   onClose,
   onSubmit,
   existingFactura,
+  isLoading = false,
+  clienteEmail,
 }) => {
   const { reportes } = useAllReportes();
+  const { facturas } = useFacturas();
   const [fechaFactura, setFechaFactura] = useState(new Date().toISOString().split('T')[0]);
   const [numeroFactura, setNumeroFactura] = useState('');
   const [reporteIds, setReporteIds] = useState<string[]>([]);
@@ -26,16 +32,53 @@ const AddFacturaModal: React.FC<AddFacturaModalProps> = ({
   const [archivoPreview, setArchivoPreview] = useState<string | null>(null);
   const [notas, setNotas] = useState('');
 
+  // Get all report IDs that are already linked to other invoices
+  const reportesYaFacturados = useMemo(() => {
+    const linkedReportIds = new Set<string>();
+    facturas.forEach(factura => {
+      // Skip the current invoice being edited
+      if (existingFactura && factura.id === existingFactura.id) return;
+      
+      const reporteIds = factura.reporteIds || ((factura as any).reporteId ? [(factura as any).reporteId] : []);
+      reporteIds.forEach(id => linkedReportIds.add(id));
+    });
+    return linkedReportIds;
+  }, [facturas, existingFactura]);
+
+  // Filter reports: exclude already linked ones and filter by client if specified
+  const reportesDisponibles = useMemo(() => {
+    return reportes.filter(reporte => {
+      // First, filter by client email if provided
+      if (clienteEmail && reporte.clienteEmail !== clienteEmail) {
+        // If editing, still show reports already linked to THIS invoice even if they don't match client
+        if (existingFactura) {
+          const currentReporteIds = existingFactura.reporteIds || ((existingFactura as any).reporteId ? [(existingFactura as any).reporteId] : []);
+          if (!currentReporteIds.includes(reporte.id)) return false;
+        } else {
+          return false;
+        }
+      }
+      
+      // If editing, always show reports that are already linked to THIS invoice
+      if (existingFactura) {
+        const currentReporteIds = existingFactura.reporteIds || ((existingFactura as any).reporteId ? [(existingFactura as any).reporteId] : []);
+        if (currentReporteIds.includes(reporte.id)) return true;
+      }
+      // Otherwise, only show reports that aren't linked to any invoice
+      return !reportesYaFacturados.has(reporte.id);
+    });
+  }, [reportes, reportesYaFacturados, existingFactura, clienteEmail]);
+
   const reportesFiltrados = useMemo(() => {
-    if (!searchReporte.trim()) return reportes;
+    if (!searchReporte.trim()) return reportesDisponibles;
     const query = searchReporte.toLowerCase();
-    return reportes.filter(reporte => 
+    return reportesDisponibles.filter(reporte => 
       reporte.id.toLowerCase().includes(query) ||
       reporte.numeroReporte.toLowerCase().includes(query) ||
       reporte.servicioTitulo.toLowerCase().includes(query) ||
       format(new Date(reporte.fechaServicio), 'dd/MM/yyyy').includes(query)
     );
-  }, [reportes, searchReporte]);
+  }, [reportesDisponibles, searchReporte]);
 
   useEffect(() => {
     if (existingFactura) {
@@ -264,8 +307,10 @@ const AddFacturaModal: React.FC<AddFacturaModalProps> = ({
               {reporteIds.length > 0 
                 ? `${reporteIds.length} reporte${reporteIds.length !== 1 ? 's' : ''} seleccionado${reporteIds.length !== 1 ? 's' : ''}`
                 : reportesFiltrados.length > 0
-                  ? `${reportesFiltrados.length} reporte${reportesFiltrados.length !== 1 ? 's' : ''} disponible${reportesFiltrados.length !== 1 ? 's' : ''} - Selecciona uno o más reportes`
-                  : 'Busca reportes para asociar a esta factura'}
+                  ? `${reportesFiltrados.length} reporte${reportesFiltrados.length !== 1 ? 's' : ''} sin facturar disponible${reportesFiltrados.length !== 1 ? 's' : ''}`
+                  : reportesDisponibles.length === 0 && reportes.length > 0
+                    ? 'Todos los reportes ya están facturados'
+                    : 'No hay reportes disponibles'}
             </p>
           </div>
 
@@ -324,15 +369,24 @@ const AddFacturaModal: React.FC<AddFacturaModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2.5 border rounded-lg font-medium hover:bg-gray-50"
+              disabled={isLoading}
+              className="flex-1 py-2.5 border rounded-lg font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="flex-1 py-2.5 bg-slate-800 text-white rounded-lg font-medium hover:bg-slate-900"
+              disabled={isLoading}
+              className="flex-1 py-2.5 bg-slate-800 text-white rounded-lg font-medium hover:bg-slate-900 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {existingFactura ? 'Actualizar' : 'Agregar'} Factura
+              {isLoading ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                <>{existingFactura ? 'Actualizar' : 'Agregar'} Factura</>
+              )}
             </button>
           </div>
         </form>

@@ -1,13 +1,37 @@
 import React, { useState, useMemo } from 'react';
-import { Ship, Plus, Search, X, Users, FileText, Calendar } from 'lucide-react';
+import { Ship, Plus, Search, X, Users, FileText, Calendar, CheckCircle, XCircle } from 'lucide-react';
 import { useAdminServicios } from '@/hooks/useAdminServicios';
 import { useCatalogos } from '@/hooks/useCatalogos';
+import { useSilos } from '@/hooks/useSilos';
+import { useBarcos } from '@/hooks/useBarcos';
 import { BarcoMaestro } from '@/types/grain';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
 
 const AdminBarcos: React.FC = () => {
   const { clientes } = useAdminServicios();
   const { barcosMaestros, addBarcoMaestro, updateBarcoMaestro, deleteBarcoMaestro } = useCatalogos();
+  const { silos } = useSilos();
+  const { getBarcoById } = useBarcos();
+
+  // Verificar si el usuario es admin
+  const currentUser = React.useMemo(() => {
+    const userJson = localStorage.getItem('fysa-current-user');
+    if (!userJson) return null;
+    try {
+      return JSON.parse(userJson);
+    } catch {
+      return null;
+    }
+  }, []);
+  const isAdmin = currentUser?.role === 'admin';
+  const userEmail = currentUser?.email || '';
+
+  // Si no es admin, obtener el cliente correspondiente al email del usuario
+  const clienteUsuario = React.useMemo(() => {
+    if (isAdmin) return null;
+    return clientes.find(c => c.email.toLowerCase() === userEmail.toLowerCase());
+  }, [isAdmin, clientes, userEmail]);
 
   const [selectedCliente, setSelectedCliente] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -15,18 +39,30 @@ const AdminBarcos: React.FC = () => {
   const [editingBarco, setEditingBarco] = useState<BarcoMaestro | null>(null);
   const [newBarco, setNewBarco] = useState({
     nombre: '',
+    activo: true,
   });
+
+  // Si no es admin, establecer automáticamente el cliente seleccionado
+  React.useEffect(() => {
+    if (!isAdmin && clienteUsuario) {
+      setSelectedCliente(clienteUsuario.id);
+    }
+  }, [isAdmin, clienteUsuario]);
 
   // Obtener barcos del cliente seleccionado
   const barcosDelCliente = useMemo(() => {
-    if (!selectedCliente) return barcosMaestros;
-    const cliente = clientes.find(c => c.id === selectedCliente);
-    if (!cliente) return [];
-    // Filtrar barcos asignados a este cliente
-    return barcosMaestros.filter(b => {
-      return b.clienteEmail === cliente.email;
-    });
-  }, [selectedCliente, barcosMaestros, clientes]);
+    if (isAdmin) {
+      // Admin: filtrar por cliente seleccionado o mostrar todos
+      if (!selectedCliente) return barcosMaestros;
+      const cliente = clientes.find(c => c.id === selectedCliente);
+      if (!cliente) return [];
+      return barcosMaestros.filter(b => b.clienteEmail === cliente.email);
+    } else {
+      // Cliente: solo ver sus propios barcos
+      if (!clienteUsuario) return [];
+      return barcosMaestros.filter(b => b.clienteEmail === clienteUsuario.email);
+    }
+  }, [selectedCliente, barcosMaestros, clientes, isAdmin, clienteUsuario]);
 
   // Filtrar barcos por búsqueda
   const barcosFiltrados = useMemo(() => {
@@ -36,6 +72,29 @@ const AdminBarcos: React.FC = () => {
       barco.nombre.toLowerCase().includes(query)
     );
   }, [barcosDelCliente, searchQuery]);
+
+  // Calcular si cada barco maestro tiene batches activos en silos
+  const barcosConEstadoActivo = useMemo(() => {
+    // Obtener todos los batches que están en silos (tienen silo_id)
+    const batchesEnSilos = silos.flatMap(silo => silo.batches || []);
+
+    // Crear un Set con los IDs de BarcoMaestro que tienen batches en silos
+    const barcoMaestroIdsConBatches = new Set<string>();
+    
+    batchesEnSilos.forEach(batch => {
+      if (batch.barcoId) {
+        // batch.barcoId es el ID del Barco (fondeo), necesitamos obtener el BarcoMaestro
+        const barco = getBarcoById(batch.barcoId);
+        if (barco?.barcoId) {
+          // barco.barcoId es el ID del BarcoMaestro
+          barcoMaestroIdsConBatches.add(barco.barcoId);
+        }
+      }
+    });
+
+    // Retornar un Set para consulta rápida
+    return barcoMaestroIdsConBatches;
+  }, [silos, getBarcoById]);
 
   const handleAgregarBarco = () => {
     if (!selectedCliente) {
@@ -56,7 +115,7 @@ const AdminBarcos: React.FC = () => {
 
     const barcoData: Omit<BarcoMaestro, 'id' | 'fechaCreacion' | 'fechaModificacion'> = {
       nombre: newBarco.nombre.trim(),
-      activo: true,
+      activo: newBarco.activo,
       clienteEmail: cliente.email, // Agregar email del cliente
     };
 
@@ -67,20 +126,25 @@ const AdminBarcos: React.FC = () => {
     }
 
     // Resetear formulario
-    setNewBarco({ nombre: '' });
+    setNewBarco({ nombre: '', activo: true });
     setEditingBarco(null);
     setShowAddModal(false);
   };
 
   const handleEdit = (barco: BarcoMaestro) => {
     setEditingBarco(barco);
-    setNewBarco({ nombre: barco.nombre });
+    setNewBarco({ nombre: barco.nombre, activo: barco.activo });
     setShowAddModal(true);
   };
 
-  const handleDelete = (barcoId: string) => {
+  const handleDelete = async (barcoId: string) => {
     if (window.confirm('¿Estás seguro de que deseas eliminar este barco?')) {
-      deleteBarcoMaestro(barcoId);
+      try {
+        await deleteBarcoMaestro(barcoId);
+        toast.success('Barco eliminado correctamente');
+      } catch (error: any) {
+        toast.error(error.message || 'Error al eliminar el barco');
+      }
     }
   };
 
@@ -100,49 +164,51 @@ const AdminBarcos: React.FC = () => {
           </p>
         </div>
 
-        {/* Selector de Cliente */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-          <div className="flex items-center justify-between">
-            <div className="flex-1 max-w-md">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Cliente
-              </label>
-              <select
-                value={selectedCliente}
-                onChange={(e) => setSelectedCliente(e.target.value)}
-                className="w-full border rounded-lg p-2.5"
-              >
-                <option value="">Todos los clientes</option>
-                {clientes.map((cliente) => (
-                  <option key={cliente.id} value={cliente.id}>
-                    {cliente.nombre} ({cliente.email})
-                  </option>
-                ))}
-              </select>
+        {/* Selector de Cliente - Solo visible para admin */}
+        {isAdmin && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+            <div className="flex items-center justify-between">
+              <div className="flex-1 max-w-md">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Cliente
+                </label>
+                <select
+                  value={selectedCliente}
+                  onChange={(e) => setSelectedCliente(e.target.value)}
+                  className="w-full border rounded-lg p-2.5"
+                >
+                  <option value="">Todos los clientes</option>
+                  {clientes.map((cliente) => (
+                    <option key={cliente.id} value={cliente.id}>
+                      {cliente.nombre} ({cliente.email})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="ml-4">
+                <button
+                  onClick={() => {
+                    setEditingBarco(null);
+                    setNewBarco({ nombre: '', activo: true });
+                    setShowAddModal(true);
+                  }}
+                  disabled={!selectedCliente}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Plus size={18} />
+                  Agregar Barco
+                </button>
+              </div>
             </div>
-            <div className="ml-4">
-              <button
-                onClick={() => {
-                  setEditingBarco(null);
-                  setNewBarco({ nombre: '' });
-                  setShowAddModal(true);
-                }}
-                disabled={!selectedCliente}
-                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Plus size={18} />
-                Agregar Barco
-              </button>
-            </div>
+            {selectedCliente && clienteSeleccionado && (
+              <div className="mt-4 pt-4 border-t">
+                <p className="text-sm text-gray-600">
+                  <span className="font-medium">Cliente seleccionado:</span> {clienteSeleccionado.nombre}
+                </p>
+              </div>
+            )}
           </div>
-          {selectedCliente && clienteSeleccionado && (
-            <div className="mt-4 pt-4 border-t">
-              <p className="text-sm text-gray-600">
-                <span className="font-medium">Cliente seleccionado:</span> {clienteSeleccionado.nombre}
-              </p>
-            </div>
-          )}
-        </div>
+        )}
 
         {/* Tabla de Barcos */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -190,9 +256,15 @@ const AdminBarcos: React.FC = () => {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Fecha de Registro
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Acciones
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Estado
                     </th>
+                    {/* Columna Acciones - Solo visible para admin */}
+                    {isAdmin && (
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Acciones
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -200,6 +272,8 @@ const AdminBarcos: React.FC = () => {
                     .sort((a, b) => a.nombre.localeCompare(b.nombre))
                     .map((barco) => {
                       const barcoCliente = clientes.find(c => c.email === barco.clienteEmail);
+                      // Determinar si el barco está activo: tiene batches en silos
+                      const tieneBatchesEnSilos = barcosConEstadoActivo.has(barco.id);
                       return (
                         <tr key={barco.id} className="hover:bg-gray-50 transition-colors">
                           <td className="px-4 py-3">
@@ -217,24 +291,46 @@ const AdminBarcos: React.FC = () => {
                               {format(new Date(barco.fechaCreacion), 'dd/MM/yyyy')}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                onClick={() => handleEdit(barco)}
-                                className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                title="Editar"
-                              >
-                                <FileText size={16} />
-                              </button>
-                              <button
-                                onClick={() => handleDelete(barco.id)}
-                                className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                title="Eliminar"
-                              >
-                                <X size={16} />
-                              </button>
-                            </div>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              tieneBatchesEnSilos
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {tieneBatchesEnSilos ? (
+                                <>
+                                  <CheckCircle size={12} />
+                                  Activo
+                                </>
+                              ) : (
+                                <>
+                                  <XCircle size={12} />
+                                  Inactivo
+                                </>
+                              )}
+                            </span>
                           </td>
+                          {/* Columna Acciones - Solo visible para admin */}
+                          {isAdmin && (
+                            <td className="px-4 py-3 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => handleEdit(barco)}
+                                  className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                  title="Editar"
+                                >
+                                  <FileText size={16} />
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(barco.id)}
+                                  className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                  title="Eliminar"
+                                >
+                                  <X size={16} />
+                                </button>
+                              </div>
+                            </td>
+                          )}
                         </tr>
                       );
                     })}
@@ -255,7 +351,7 @@ const AdminBarcos: React.FC = () => {
                 <button
                   onClick={() => {
                     setShowAddModal(false);
-                    setNewBarco({ nombre: '' });
+                    setNewBarco({ nombre: '', activo: true });
                     setEditingBarco(null);
                   }}
                   className="p-2 hover:bg-gray-100 rounded-lg"
@@ -284,11 +380,24 @@ const AdminBarcos: React.FC = () => {
                     </p>
                   </div>
                 )}
+                <div>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newBarco.activo}
+                      onChange={(e) => setNewBarco({ ...newBarco, activo: e.target.checked })}
+                      className="w-5 h-5 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+                    />
+                    <span className="text-sm font-medium text-gray-700">
+                      Barco activo (disponible para seleccionar)
+                    </span>
+                  </label>
+                </div>
                 <div className="flex gap-3 pt-4 border-t">
                   <button
                     onClick={() => {
                       setShowAddModal(false);
-                      setNewBarco({ nombre: '' });
+                      setNewBarco({ nombre: '', activo: true });
                       setEditingBarco(null);
                     }}
                     className="flex-1 py-2.5 border rounded-lg font-medium hover:bg-gray-50"

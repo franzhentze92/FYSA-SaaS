@@ -13,6 +13,7 @@ const Lotes: React.FC = () => {
     addBatchToSilo,
     updateBatch,
     deleteBatch,
+    removeBatchFromSilo,
     traspasarBatch,
     addSilo,
     updateSilo,
@@ -68,8 +69,8 @@ const Lotes: React.FC = () => {
 
   const handleDeleteBatch = (siloId: string, batchId: string) => {
     if (!isAdmin) return; // Solo admin puede eliminar batches
-    if (window.confirm('¿Estás seguro de que deseas eliminar este batch?')) {
-      deleteBatch(siloId, batchId);
+    if (window.confirm('¿Estás seguro de que deseas vaciar este silo? El batch será removido del silo pero se mantendrá en el historial.')) {
+      removeBatchFromSilo(siloId, batchId);
     }
   };
 
@@ -177,7 +178,7 @@ const Lotes: React.FC = () => {
             <div>
               <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
                 <Package size={32} />
-                Silos y Lotes
+                Silos y Granos
               </h1>
               <p className="text-gray-600 mt-2">
                 Gestiona los batches de grano en cada silo

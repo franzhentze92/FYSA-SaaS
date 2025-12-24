@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Settings, Plus, Search, X, CheckCircle2, XCircle, UserPlus, Users, Building2 } from 'lucide-react';
+import { Settings, Plus, Search, X, CheckCircle2, XCircle, UserPlus, Users, Building2, Edit2 } from 'lucide-react';
 import { useAdminServicios, SERVICIOS_DISPONIBLES } from '@/hooks/useAdminServicios';
 import { format } from 'date-fns';
 
@@ -17,10 +17,12 @@ const AdminServicios: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddClienteModal, setShowAddClienteModal] = useState(false);
+  const [showEditClienteModal, setShowEditClienteModal] = useState(false);
   const [showAsignarServicioModal, setShowAsignarServicioModal] = useState(false);
   const [selectedCliente, setSelectedCliente] = useState<string | null>(null);
   const [selectedServicio, setSelectedServicio] = useState<number | null>(null);
   const [newCliente, setNewCliente] = useState({ nombre: '', email: '' });
+  const [editingCliente, setEditingCliente] = useState<{ id: string; nombre: string; email: string } | null>(null);
 
   const serviciosFiltrados = useMemo(() => {
     if (!searchQuery) return serviciosAsignados;
@@ -40,6 +42,29 @@ const AdminServicios: React.FC = () => {
     agregarCliente(newCliente.nombre.trim(), newCliente.email.trim());
     setNewCliente({ nombre: '', email: '' });
     setShowAddClienteModal(false);
+  };
+
+  const handleEditCliente = (cliente: { id: string; nombre: string; email: string }) => {
+    setEditingCliente(cliente);
+    setShowEditClienteModal(true);
+  };
+
+  const handleGuardarCliente = async () => {
+    if (!editingCliente || !editingCliente.nombre.trim() || !editingCliente.email.trim()) {
+      alert('Por favor completa todos los campos');
+      return;
+    }
+    try {
+      await actualizarCliente(editingCliente.id, {
+        nombre: editingCliente.nombre.trim(),
+        email: editingCliente.email.trim(),
+      });
+      setEditingCliente(null);
+      setShowEditClienteModal(false);
+    } catch (err) {
+      alert('Error al actualizar el cliente. Por favor intenta de nuevo.');
+      console.error(err);
+    }
   };
 
   const handleAsignarServicio = () => {
@@ -198,17 +223,26 @@ const AdminServicios: React.FC = () => {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <button
-                            onClick={() => {
-                              if (confirm(`¿Estás seguro de eliminar el cliente "${cliente.nombre}"?`)) {
-                                eliminarCliente(cliente.id);
-                              }
-                            }}
-                            className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
-                            title="Eliminar Cliente"
-                          >
-                            <X size={18} />
-                          </button>
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleEditCliente(cliente)}
+                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                              title="Editar Cliente"
+                            >
+                              <Edit2 size={18} />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (confirm(`¿Estás seguro de eliminar el cliente "${cliente.nombre}"?`)) {
+                                  eliminarCliente(cliente.id);
+                                }
+                              }}
+                              className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                              title="Eliminar Cliente"
+                            >
+                              <X size={18} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -375,6 +409,69 @@ const AdminServicios: React.FC = () => {
           </div>
         )}
 
+        {/* Edit Cliente Modal */}
+        {showEditClienteModal && editingCliente && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl max-w-md w-full">
+              <div className="border-b p-4 flex justify-between items-center">
+                <h2 className="text-lg font-semibold">Editar Cliente</h2>
+                <button
+                  onClick={() => {
+                    setShowEditClienteModal(false);
+                    setEditingCliente(null);
+                  }}
+                  className="p-2 hover:bg-gray-100 rounded-lg"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Nombre del Cliente
+                  </label>
+                  <input
+                    type="text"
+                    value={editingCliente.nombre}
+                    onChange={(e) => setEditingCliente({ ...editingCliente, nombre: e.target.value })}
+                    className="w-full border rounded-lg p-2.5"
+                    placeholder="Ej: Aprovigra - Molinos Modernos S.A"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Email del Cliente
+                  </label>
+                  <input
+                    type="email"
+                    value={editingCliente.email}
+                    onChange={(e) => setEditingCliente({ ...editingCliente, email: e.target.value })}
+                    className="w-full border rounded-lg p-2.5"
+                    placeholder="cliente@ejemplo.com"
+                  />
+                </div>
+                <div className="flex gap-3 pt-2 border-t">
+                  <button
+                    onClick={() => {
+                      setShowEditClienteModal(false);
+                      setEditingCliente(null);
+                    }}
+                    className="flex-1 py-2.5 border rounded-lg font-medium hover:bg-gray-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleGuardarCliente}
+                    className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
+                  >
+                    Guardar Cambios
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Asignar Servicio Modal */}
         {showAsignarServicioModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -420,11 +517,15 @@ const AdminServicios: React.FC = () => {
                     className="w-full border rounded-lg p-2.5"
                   >
                     <option value="">Selecciona un servicio</option>
-                    {SERVICIOS_DISPONIBLES.map((servicio) => (
-                      <option key={servicio.id} value={servicio.id}>
-                        {servicio.titulo}
-                      </option>
-                    ))}
+                    {SERVICIOS_DISPONIBLES
+                      .filter((servicio, index, self) => 
+                        index === self.findIndex(s => s.id === servicio.id)
+                      )
+                      .map((servicio) => (
+                        <option key={servicio.id} value={servicio.id}>
+                          {servicio.titulo}
+                        </option>
+                      ))}
                   </select>
                 </div>
                 <div className="flex gap-3 pt-2 border-t">

@@ -1,6 +1,6 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { LogOut, ChevronRight } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { LogOut, ChevronRight, Home } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -58,6 +58,14 @@ const UserMenu: React.FC = () => {
         <div className="px-2 py-1.5">
           <p className="text-xs font-medium text-emerald-600">{user.role}</p>
         </div>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link to="/" className="cursor-pointer">
+            <Home className="mr-2 h-4 w-4" />
+            <span>Ir al Inicio</span>
+            <ChevronRight className="ml-auto h-4 w-4" />
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={handleLogout}

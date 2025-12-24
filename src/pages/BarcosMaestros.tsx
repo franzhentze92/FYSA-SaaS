@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Ship, Plus, Edit, Trash2, Search, CheckCircle, XCircle, X } from 'lucide-react';
 import { useCatalogos } from '@/hooks/useCatalogos';
 import { BarcoMaestro } from '@/types/grain';
+import { toast } from 'sonner';
 
 const BarcosMaestros: React.FC = () => {
   const {
@@ -54,9 +55,14 @@ const BarcosMaestros: React.FC = () => {
     setShowModal(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (window.confirm('¿Estás seguro de que deseas eliminar este barco del catálogo?')) {
-      deleteBarcoMaestro(id);
+      try {
+        await deleteBarcoMaestro(id);
+        toast.success('Barco eliminado correctamente');
+      } catch (error: any) {
+        toast.error(error.message || 'Error al eliminar el barco');
+      }
     }
   };
 

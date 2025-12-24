@@ -1,38 +1,46 @@
-import React, { useState } from 'react';
-import { ClipboardList, Search, CheckSquare, Square } from 'lucide-react';
-
-interface Servicio {
-  id: number;
-  titulo: string;
-  activo: boolean;
-}
+import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ClipboardList, Search, CheckCircle2, XCircle, ChevronRight } from 'lucide-react';
+import { useAdminServicios } from '@/hooks/useAdminServicios';
 
 const Servicios: React.FC = () => {
-  const [servicios, setServicios] = useState<Servicio[]>([
-    { id: 217402, titulo: 'Fumigación de Graneleras - APROVIGRA', activo: false },
-    { id: 187066, titulo: 'Solicitud de Fumigación APROVIGRA', activo: false },
-    { id: 150702, titulo: 'Fumigación de graneleras APROVIGRA 2.0', activo: false },
-    { id: 148998, titulo: 'Aspersión en banda APROVIGRA', activo: false },
-    { id: 148591, titulo: 'Liberación de Encarpado APROVIGRA', activo: false },
-    { id: 136260, titulo: 'Fumigación General APROVIGRA', activo: false },
-    { id: 136259, titulo: 'Muestreo de Granos APROVIGRA', activo: false },
-    { id: 136258, titulo: 'Control de Roedores APROVIGRA', activo: false },
-    { id: 136257, titulo: 'Gasificación y Encarpado APROVIGRA', activo: false },
-    { id: 136256, titulo: 'Servicios generales APROVIGRA', activo: false },
-  ]);
-
+  const navigate = useNavigate();
+  const { serviciosAsignados } = useAdminServicios();
   const [searchQuery, setSearchQuery] = useState('');
 
-  const toggleServicio = (id: number) => {
-    setServicios(prev => prev.map(servicio =>
-      servicio.id === id ? { ...servicio, activo: !servicio.activo } : servicio
-    ));
-  };
+  // Obtener el usuario actual del localStorage
+  const currentUser = useMemo(() => {
+    const userJson = localStorage.getItem('fysa-current-user');
+    if (!userJson) return null;
+    try {
+      return JSON.parse(userJson);
+    } catch {
+      return null;
+    }
+  }, []);
 
-  const serviciosFiltrados = servicios.filter(servicio =>
-    servicio.titulo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    servicio.id.toString().includes(searchQuery)
-  );
+  const isAdmin = currentUser?.role === 'admin';
+  const userEmail = currentUser?.email || '';
+
+  // Filtrar servicios según el rol del usuario
+  const serviciosDelUsuario = useMemo(() => {
+    if (isAdmin) {
+      return serviciosAsignados; // Admin ve todos los servicios asignados
+    } else {
+      // Cliente solo ve sus servicios asignados
+      return serviciosAsignados.filter(s => s.clienteEmail === userEmail);
+    }
+  }, [serviciosAsignados, isAdmin, userEmail]);
+
+  // Filtrar por búsqueda
+  const serviciosFiltrados = useMemo(() => {
+    if (!searchQuery) return serviciosDelUsuario;
+    const query = searchQuery.toLowerCase();
+    return serviciosDelUsuario.filter(servicio =>
+      servicio.servicioTitulo.toLowerCase().includes(query) ||
+      servicio.servicioId.toString().includes(query)
+    );
+  }, [serviciosDelUsuario, searchQuery]);
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -46,7 +54,9 @@ const Servicios: React.FC = () => {
                 Servicios
               </h1>
               <p className="text-gray-600 mt-2">
-                Gestión de servicios disponibles
+                {isAdmin 
+                  ? 'Todos los servicios asignados' 
+                  : 'Servicios asignados a tu cuenta'}
               </p>
             </div>
           </div>
@@ -70,22 +80,37 @@ const Servicios: React.FC = () => {
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12">
-                    <CheckSquare size={16} className="text-gray-400" />
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Estado
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     ID
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Título
+                    Título del Servicio
+                  </th>
+                  {isAdmin && (
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Cliente
+                    </th>
+                  )}
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Acciones
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {serviciosFiltrados.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="px-4 py-8 text-center text-gray-500">
-                      No se encontraron servicios con la búsqueda.
+                    <td colSpan={isAdmin ? 5 : 4} className="px-4 py-12 text-center">
+                      <ClipboardList size={48} className="mx-auto text-gray-400 mb-4" />
+                      <p className="text-gray-500">
+                        {serviciosDelUsuario.length === 0
+                          ? isAdmin
+                            ? 'No hay servicios asignados. Ve a Administración de Servicios para asignar servicios a clientes.'
+                            : 'No tienes servicios asignados. Contacta al administrador para que te asigne servicios.'
+                          : 'No se encontraron servicios con la búsqueda.'}
+                      </p>
                     </td>
                   </tr>
                 ) : (
@@ -93,30 +118,49 @@ const Servicios: React.FC = () => {
                     <tr
                       key={servicio.id}
                       className={`hover:bg-gray-50 transition-colors ${
-                        servicio.activo ? 'bg-blue-50' : ''
+                        servicio.activo ? '' : 'opacity-60'
                       }`}
                     >
                       <td className="px-4 py-3">
-                        <button
-                          onClick={() => toggleServicio(servicio.id)}
-                          className="flex items-center justify-center"
-                        >
-                          {servicio.activo ? (
-                            <CheckSquare size={20} className="text-blue-600" />
-                          ) : (
-                            <Square size={20} className="text-gray-400" />
-                          )}
-                        </button>
+                        {servicio.activo ? (
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 size={18} className="text-emerald-600" />
+                            <span className="text-xs font-medium text-emerald-700">Activo</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <XCircle size={18} className="text-gray-400" />
+                            <span className="text-xs font-medium text-gray-500">Inactivo</span>
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <span className="text-sm font-medium text-blue-600">
-                          {servicio.id}
+                          {servicio.servicioId}
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-sm text-gray-900">
-                          {servicio.titulo}
+                        <span className="text-sm text-gray-900 font-medium">
+                          {servicio.servicioTitulo}
                         </span>
+                      </td>
+                      {isAdmin && (
+                        <td className="px-4 py-3">
+                          <div>
+                            <span className="text-sm text-gray-900">{servicio.clienteNombre}</span>
+                            <span className="text-xs text-gray-500 block">{servicio.clienteEmail}</span>
+                          </div>
+                        </td>
+                      )}
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() => navigate(`/servicios/${servicio.servicioId}`)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium"
+                          title="Ver documentos del servicio"
+                        >
+                          Ver
+                          <ChevronRight size={16} />
+                        </button>
                       </td>
                     </tr>
                   ))
@@ -128,7 +172,7 @@ const Servicios: React.FC = () => {
 
         {serviciosFiltrados.length > 0 && (
           <div className="mt-4 text-sm text-gray-600">
-            Mostrando {serviciosFiltrados.length} de {servicios.length} servicios
+            Mostrando {serviciosFiltrados.length} de {serviciosDelUsuario.length} servicios
           </div>
         )}
       </div>
@@ -137,4 +181,3 @@ const Servicios: React.FC = () => {
 };
 
 export default Servicios;
-

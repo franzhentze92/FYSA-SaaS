@@ -1,33 +1,59 @@
 import React, { useState, useMemo } from 'react';
-import { Warehouse, Plus, Search, X, Users, FileText, Package, Edit, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Warehouse, Plus, Search, X, Users, FileText, Package, Edit, Trash2, ChevronDown, ChevronUp, ArrowRightLeft, LayoutGrid, List } from 'lucide-react';
 import { useAdminServicios } from '@/hooks/useAdminServicios';
 import { useSilos } from '@/hooks/useSilos';
 import { Silo, GrainBatch } from '@/types/grain';
 import { format } from 'date-fns';
 import AddEditSiloModal from '@/components/grain/AddEditSiloModal';
 import AddBatchModal from '@/components/grain/AddBatchModal';
+import TraspasoBatchModal from '@/components/grain/TraspasoBatchModal';
+import SiloCard from '@/components/grain/SiloCard';
 
 const AdminSilosLotes: React.FC = () => {
   const { clientes } = useAdminServicios();
-  const { silos, addSilo, updateSilo, deleteSilo, getTotalQuantityInSilo, addBatchToSilo, updateBatch, deleteBatch } = useSilos();
+  const { silos, addSilo, updateSilo, deleteSilo, getTotalQuantityInSilo, addBatchToSilo, updateBatch, deleteBatch, removeBatchFromSilo, traspasarBatch } = useSilos();
+
+  // Verificar si el usuario es admin
+  const currentUser = React.useMemo(() => {
+    const userJson = localStorage.getItem('fysa-current-user');
+    if (!userJson) return null;
+    try {
+      return JSON.parse(userJson);
+    } catch {
+      return null;
+    }
+  }, []);
+  const isAdmin = currentUser?.role === 'admin';
+  const userEmail = currentUser?.email || '';
 
   const [selectedCliente, setSelectedCliente] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('grid');
   const [showSiloModal, setShowSiloModal] = useState(false);
   const [editingSilo, setEditingSilo] = useState<Silo | null>(null);
   const [expandedSilos, setExpandedSilos] = useState<Set<string>>(new Set());
   const [selectedSiloForBatch, setSelectedSiloForBatch] = useState<string | null>(null);
   const [editingBatch, setEditingBatch] = useState<{ siloId: string; batch: GrainBatch } | null>(null);
   const [showBatchModal, setShowBatchModal] = useState(false);
+  
+  // State for transfer modal
+  const [showTraspasarModal, setShowTraspasarModal] = useState(false);
+  const [batchToTraspasar, setBatchToTraspasar] = useState<{ siloId: string; batch: GrainBatch } | null>(null);
 
-  // Obtener silos del cliente seleccionado
+  // Obtener silos del cliente seleccionado (admin) o solo del cliente actual (no admin)
   const silosDelCliente = useMemo(() => {
-    if (!selectedCliente) return silos;
-    const cliente = clientes.find(c => c.id === selectedCliente);
-    if (!cliente) return [];
-    // Filtrar silos asignados a este cliente
-    return silos.filter(s => s.clienteEmail === cliente.email);
-  }, [selectedCliente, silos, clientes]);
+    if (isAdmin) {
+      // Admin: filtrar por cliente seleccionado o mostrar todos
+      if (!selectedCliente) return silos;
+      const cliente = clientes.find(c => c.id === selectedCliente);
+      if (!cliente) return [];
+      // Filtrar silos asignados a este cliente
+      return silos.filter(s => s.clienteEmail === cliente.email);
+    } else {
+      // Cliente: solo ver sus propios silos
+      return silos.filter(s => s.clienteEmail === userEmail);
+    }
+  }, [selectedCliente, silos, clientes, isAdmin, userEmail]);
 
   // Filtrar silos por búsqueda
   const silosFiltrados = useMemo(() => {
@@ -66,9 +92,13 @@ const AdminSilosLotes: React.FC = () => {
     setShowSiloModal(true);
   };
 
+  const handleDeleteSiloInternal = (siloId: string) => {
+    deleteSilo(siloId);
+  };
+
   const handleDelete = (siloId: string) => {
     if (window.confirm('¿Estás seguro de que deseas eliminar este silo? Esta acción eliminará todos los batches contenidos.')) {
-      deleteSilo(siloId);
+      handleDeleteSiloInternal(siloId);
     }
   };
 
@@ -123,8 +153,8 @@ const AdminSilosLotes: React.FC = () => {
   };
 
   const handleDeleteBatch = (siloId: string, batchId: string) => {
-    if (window.confirm('¿Estás seguro de que deseas eliminar este batch?')) {
-      deleteBatch(siloId, batchId);
+    if (window.confirm('¿Estás seguro de que deseas vaciar este silo? El batch será removido del silo pero se mantendrá en el historial.')) {
+      removeBatchFromSilo(siloId, batchId);
     }
   };
 
@@ -147,6 +177,31 @@ const AdminSilosLotes: React.FC = () => {
     setEditingBatch(null);
   };
 
+  // Transfer batch handlers
+  const handleTraspasarBatch = (siloId: string, batch: GrainBatch) => {
+    setBatchToTraspasar({ siloId, batch });
+    setShowTraspasarModal(true);
+  };
+
+  const handleConfirmTraspasar = (siloDestinoId: string, cantidad: number, notas?: string) => {
+    if (batchToTraspasar) {
+      traspasarBatch(
+        batchToTraspasar.siloId,
+        siloDestinoId,
+        batchToTraspasar.batch.id,
+        cantidad,
+        notas
+      );
+      setShowTraspasarModal(false);
+      setBatchToTraspasar(null);
+    }
+  };
+
+  const handleCloseTraspasarModal = () => {
+    setShowTraspasarModal(false);
+    setBatchToTraspasar(null);
+  };
+
   const clienteSeleccionado = clientes.find(c => c.id === selectedCliente);
 
   return (
@@ -156,70 +211,101 @@ const AdminSilosLotes: React.FC = () => {
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
             <Warehouse size={32} />
-            Administración de Silos y Lotes
+            Administración de Silos y Granos
           </h1>
           <p className="text-gray-600 mt-2">
             Agrega y asigna silos a los clientes
           </p>
         </div>
 
-        {/* Selector de Cliente */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-          <div className="flex items-center justify-between">
-            <div className="flex-1 max-w-md">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Cliente
-              </label>
-              <select
-                value={selectedCliente}
-                onChange={(e) => setSelectedCliente(e.target.value)}
-                className="w-full border rounded-lg p-2.5"
-              >
-                <option value="">Todos los clientes</option>
-                {clientes.map((cliente) => (
-                  <option key={cliente.id} value={cliente.id}>
-                    {cliente.nombre} ({cliente.email})
-                  </option>
-                ))}
-              </select>
+        {/* Selector de Cliente - Solo visible para admin */}
+        {isAdmin && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+            <div className="flex items-center justify-between">
+              <div className="flex-1 max-w-md">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Cliente
+                </label>
+                <select
+                  value={selectedCliente}
+                  onChange={(e) => setSelectedCliente(e.target.value)}
+                  className="w-full border rounded-lg p-2.5"
+                >
+                  <option value="">Todos los clientes</option>
+                  {clientes.map((cliente) => (
+                    <option key={cliente.id} value={cliente.id}>
+                      {cliente.nombre} ({cliente.email})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="ml-4">
+                <button
+                  onClick={handleAgregarSilo}
+                  disabled={!selectedCliente}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Plus size={18} />
+                  Agregar Silo
+                </button>
+              </div>
             </div>
-            <div className="ml-4">
-              <button
-                onClick={handleAgregarSilo}
-                disabled={!selectedCliente}
-                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Plus size={18} />
-                Agregar Silo
-              </button>
-            </div>
+            {selectedCliente && clienteSeleccionado && (
+              <div className="mt-4 pt-4 border-t">
+                <p className="text-sm text-gray-600">
+                  <span className="font-medium">Cliente seleccionado:</span> {clienteSeleccionado.nombre}
+                </p>
+              </div>
+            )}
           </div>
-          {selectedCliente && clienteSeleccionado && (
-            <div className="mt-4 pt-4 border-t">
-              <p className="text-sm text-gray-600">
-                <span className="font-medium">Cliente seleccionado:</span> {clienteSeleccionado.nombre}
-              </p>
-            </div>
-          )}
-        </div>
+        )}
 
         {/* Tabla de Silos */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
               <Warehouse size={24} />
-              Silos {selectedCliente ? `de ${clienteSeleccionado?.nombre}` : ''}
+              Silos {isAdmin && selectedCliente ? `de ${clienteSeleccionado?.nombre}` : ''}
             </h2>
-            <div className="flex-1 max-w-md ml-4">
-              <div className="relative">
-                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Buscar silos..."
-                  className="w-full bg-white border border-gray-300 rounded-lg pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
-                />
+            <div className="flex items-center gap-4">
+              {/* Toggle de vista */}
+              <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
+                <button
+                  onClick={() => setViewMode('table')}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors ${
+                    viewMode === 'table'
+                      ? 'bg-white text-emerald-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                  title="Vista de tabla"
+                >
+                  <List size={18} />
+                  <span className="text-sm font-medium">Tabla</span>
+                </button>
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors ${
+                    viewMode === 'grid'
+                      ? 'bg-white text-emerald-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                  title="Vista de grilla"
+                >
+                  <LayoutGrid size={18} />
+                  <span className="text-sm font-medium">Grilla</span>
+                </button>
+              </div>
+              <div className="flex-1 max-w-md">
+                <div className="relative">
+                  <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Buscar silos..."
+                    className="w-full bg-white border border-gray-300 rounded-lg pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -235,7 +321,7 @@ const AdminSilosLotes: React.FC = () => {
                   : 'No se encontraron silos con la búsqueda.'}
               </p>
             </div>
-          ) : (
+          ) : viewMode === 'table' ? (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
@@ -326,27 +412,31 @@ const AdminSilosLotes: React.FC = () => {
                                 >
                                   {expandedSilos.has(silo.id) ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                                 </button>
-                                <button
-                                  onClick={() => handleAddBatch(silo.id)}
-                                  className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
-                                  title="Agregar batch"
-                                >
-                                  <Plus size={16} />
-                                </button>
-                                <button
-                                  onClick={() => handleEdit(silo)}
-                                  className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                  title="Editar silo"
-                                >
-                                  <FileText size={16} />
-                                </button>
-                                <button
-                                  onClick={() => handleDelete(silo.id)}
-                                  className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                  title="Eliminar silo"
-                                >
-                                  <X size={16} />
-                                </button>
+                                {isAdmin && (
+                                  <>
+                                    <button
+                                      onClick={() => handleAddBatch(silo.id)}
+                                      className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
+                                      title="Agregar batch"
+                                    >
+                                      <Plus size={16} />
+                                    </button>
+                                    <button
+                                      onClick={() => handleEdit(silo)}
+                                      className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                      title="Editar silo"
+                                    >
+                                      <FileText size={16} />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDelete(silo.id)}
+                                      className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                      title="Eliminar silo"
+                                    >
+                                      <X size={16} />
+                                    </button>
+                                  </>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -358,13 +448,15 @@ const AdminSilosLotes: React.FC = () => {
                                     <h4 className="text-sm font-semibold text-gray-700">
                                       Batches del Silo {silo.number}
                                     </h4>
-                                    <button
-                                      onClick={() => handleAddBatch(silo.id)}
-                                      className="flex items-center gap-1 px-2 py-1 text-xs bg-emerald-600 text-white rounded hover:bg-emerald-700"
-                                    >
-                                      <Plus size={12} />
-                                      Agregar Batch
-                                    </button>
+                                    {isAdmin && (
+                                      <button
+                                        onClick={() => handleAddBatch(silo.id)}
+                                        className="flex items-center gap-1 px-2 py-1 text-xs bg-emerald-600 text-white rounded hover:bg-emerald-700"
+                                      >
+                                        <Plus size={12} />
+                                        Agregar Batch
+                                      </button>
+                                    )}
                                   </div>
                                   {silo.batches.length === 0 ? (
                                     <p className="text-sm text-gray-500 text-center py-4">
@@ -394,7 +486,7 @@ const AdminSilosLotes: React.FC = () => {
                                                 <span className="font-medium">Cantidad:</span> {batch.quantity} {batch.unit === 'tonnes' ? 'ton' : 'kg'}
                                               </p>
                                               <p>
-                                                <span className="font-medium">Fecha de entrada:</span> {format(new Date(batch.entryDate), 'dd/MM/yyyy')}
+                                                <span className="font-medium">Fecha de entrada:</span> {batch.entryDate ? format(new Date(batch.entryDate), 'dd/MM/yyyy') : 'N/A'}
                                               </p>
                                               <p>
                                                 <span className="font-medium">Origen:</span> {batch.origin}
@@ -406,22 +498,31 @@ const AdminSilosLotes: React.FC = () => {
                                               )}
                                             </div>
                                           </div>
-                                          <div className="flex gap-1 ml-4">
-                                            <button
-                                              onClick={() => handleEditBatch(silo.id, batch)}
-                                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                              title="Editar batch"
-                                            >
-                                              <Edit size={14} />
-                                            </button>
-                                            <button
-                                              onClick={() => handleDeleteBatch(silo.id, batch.id)}
-                                              className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                              title="Eliminar batch"
-                                            >
-                                              <Trash2 size={14} />
-                                            </button>
-                                          </div>
+                                          {isAdmin && (
+                                            <div className="flex gap-1 ml-4">
+                                              <button
+                                                onClick={() => handleTraspasarBatch(silo.id, batch)}
+                                                className="p-1.5 text-amber-600 hover:bg-amber-50 rounded transition-colors"
+                                                title="Traspasar a otro silo"
+                                              >
+                                                <ArrowRightLeft size={14} />
+                                              </button>
+                                              <button
+                                                onClick={() => handleEditBatch(silo.id, batch)}
+                                                className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                                title="Editar batch"
+                                              >
+                                                <Edit size={14} />
+                                              </button>
+                                              <button
+                                                onClick={() => handleDeleteBatch(silo.id, batch.id)}
+                                                className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                                title="Vaciar silo (remover batch del silo)"
+                                              >
+                                                <Trash2 size={14} />
+                                              </button>
+                                            </div>
+                                          )}
                                         </div>
                                       ))}
                                     </div>
@@ -435,6 +536,25 @@ const AdminSilosLotes: React.FC = () => {
                     })}
                 </tbody>
               </table>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {silosFiltrados
+                .sort((a, b) => a.number - b.number)
+                .map((silo) => (
+                  <SiloCard
+                    key={silo.id}
+                    silo={silo}
+                    onAddBatch={isAdmin ? () => handleAddBatch(silo.id) : () => {}}
+                    onEditBatch={isAdmin ? (batch) => handleEditBatch(silo.id, batch) : () => {}}
+                    onDeleteBatch={isAdmin ? (batchId) => handleDeleteBatch(silo.id, batchId) : () => {}}
+                    onTraspasarBatch={isAdmin ? (batch) => handleTraspasarBatch(silo.id, batch) : () => {}}
+                    onEditSilo={isAdmin ? (silo) => handleEdit(silo) : () => {}}
+                    onDeleteSilo={isAdmin ? (siloId) => handleDeleteSiloInternal(siloId) : () => {}}
+                    totalQuantity={getTotalQuantityInSilo(silo.id)}
+                    isAdmin={isAdmin}
+                  />
+                ))}
             </div>
           )}
         </div>
@@ -456,6 +576,18 @@ const AdminSilosLotes: React.FC = () => {
             onSubmit={handleSubmitBatch}
             siloNumber={silos.find(s => s.id === selectedSiloForBatch)?.number || 0}
             existingBatch={editingBatch?.batch}
+          />
+        )}
+
+        {/* Modal para Traspasar Batch */}
+        {batchToTraspasar && (
+          <TraspasoBatchModal
+            isOpen={showTraspasarModal}
+            onClose={handleCloseTraspasarModal}
+            onSubmit={handleConfirmTraspasar}
+            batch={batchToTraspasar.batch}
+            siloOrigen={silos.find(s => s.id === batchToTraspasar.siloId)!}
+            silos={silosDelCliente.filter(s => s.id !== batchToTraspasar.siloId)}
           />
         )}
       </div>

@@ -1,15 +1,46 @@
 import React, { useState, useMemo } from 'react';
-import { FileCheck, Search, Filter, CheckCircle2, XCircle } from 'lucide-react';
+import { FileCheck, Search, Filter, CheckCircle2, XCircle, Trash2 } from 'lucide-react';
 import { useAllReportes } from '@/hooks/useAllReportes';
 import { useFacturas } from '@/hooks/useFacturas';
 import { format } from 'date-fns';
+import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
 
 const ReportesFacturas: React.FC = () => {
-  const { reportes } = useAllReportes();
-  const { facturas } = useFacturas();
+  const { reportes: allReportes, refetch: refetchReportes } = useAllReportes();
+  const { facturas: allFacturas } = useFacturas();
   const [searchQuery, setSearchQuery] = useState('');
   const [filtroServicio, setFiltroServicio] = useState<string>('todos');
   const [filtroFacturado, setFiltroFacturado] = useState<string>('todos');
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
+
+  // Get current user to filter by client
+  const currentUser = useMemo(() => {
+    const userJson = localStorage.getItem('fysa-current-user');
+    if (!userJson) return null;
+    try {
+      return JSON.parse(userJson);
+    } catch {
+      return null;
+    }
+  }, []);
+  
+  const isAdmin = currentUser?.role === 'admin';
+  const userEmail = currentUser?.email;
+
+  // Filter reports by client email if user is not admin
+  const reportes = useMemo(() => {
+    if (isAdmin) return allReportes;
+    if (!userEmail) return [];
+    return allReportes.filter(r => r.clienteEmail === userEmail);
+  }, [allReportes, isAdmin, userEmail]);
+
+  // Filter facturas by client email if user is not admin
+  const facturas = useMemo(() => {
+    if (isAdmin) return allFacturas;
+    if (!userEmail) return [];
+    return allFacturas.filter(f => (f as any).clienteEmail === userEmail);
+  }, [allFacturas, isAdmin, userEmail]);
 
   // Obtener lista única de servicios
   const serviciosUnicos = useMemo(() => {
@@ -48,10 +79,14 @@ const ReportesFacturas: React.FC = () => {
       // Filtro por búsqueda
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
+        const facturaNumero = reporteAFacturaMap.get(reporte.id) || '';
         const matchSearch = 
           reporte.numeroReporte.toLowerCase().includes(query) ||
           reporte.servicioTitulo.toLowerCase().includes(query) ||
           reporte.id.toLowerCase().includes(query) ||
+          reporte.clienteNombre?.toLowerCase().includes(query) ||
+          reporte.clienteEmail?.toLowerCase().includes(query) ||
+          facturaNumero.toLowerCase().includes(query) ||
           format(new Date(reporte.fechaServicio), 'dd/MM/yyyy').includes(query);
         if (!matchSearch) return false;
       }
@@ -68,7 +103,7 @@ const ReportesFacturas: React.FC = () => {
 
       return true;
     });
-  }, [reportes, searchQuery, filtroServicio, filtroFacturado, reportesConFactura]);
+  }, [reportes, searchQuery, filtroServicio, filtroFacturado, reportesConFactura, reporteAFacturaMap]);
 
   // Estadísticas
   const estadisticas = useMemo(() => {
@@ -77,6 +112,33 @@ const ReportesFacturas: React.FC = () => {
     const sinFacturar = total - facturados;
     return { total, facturados, sinFacturar };
   }, [reportes.length, reportesConFactura]);
+
+  // Delete report handler (admin only)
+  const handleDeleteReport = async (reportId: string, reportNumber: string) => {
+    if (!isAdmin) return;
+    
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar el reporte ${reportNumber}? Esta acción no se puede deshacer.`)) {
+      return;
+    }
+
+    setIsDeleting(reportId);
+    try {
+      const { error } = await supabase
+        .from('documentos_servicio')
+        .delete()
+        .eq('id', reportId);
+
+      if (error) throw error;
+      
+      toast.success(`Reporte ${reportNumber} eliminado correctamente`);
+      refetchReportes();
+    } catch (error) {
+      console.error('Error deleting report:', error);
+      toast.error('Error al eliminar el reporte');
+    } finally {
+      setIsDeleting(null);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -88,7 +150,9 @@ const ReportesFacturas: React.FC = () => {
             Reportes y Facturas
           </h1>
           <p className="text-gray-600">
-            Visualiza todos los reportes y su estado de facturación
+            {isAdmin 
+              ? 'Visualiza todos los reportes y su estado de facturación'
+              : 'Visualiza tus reportes y su estado de facturación'}
           </p>
         </div>
 
@@ -126,7 +190,7 @@ const ReportesFacturas: React.FC = () => {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Número, servicio, ID, fecha..."
+                  placeholder="Número de reporte, factura, servicio, cliente..."
                   className="w-full border rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
                 />
               </div>
@@ -189,6 +253,9 @@ const ReportesFacturas: React.FC = () => {
                       Estado
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Cliente
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Número de Reporte
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -200,6 +267,11 @@ const ReportesFacturas: React.FC = () => {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       ID de Factura
                     </th>
+                    {isAdmin && (
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Acciones
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -227,6 +299,20 @@ const ReportesFacturas: React.FC = () => {
                           )}
                         </td>
                         <td className="px-4 py-3">
+                          {reporte.clienteNombre ? (
+                            <div>
+                              <span className="text-sm font-medium text-gray-900">
+                                {reporte.clienteNombre}
+                              </span>
+                              {reporte.clienteEmail && (
+                                <p className="text-xs text-gray-500">{reporte.clienteEmail}</p>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400 italic">-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
                           <span className="text-sm font-medium text-gray-900">
                             {reporte.numeroReporte}
                           </span>
@@ -250,6 +336,26 @@ const ReportesFacturas: React.FC = () => {
                             <span className="text-xs text-gray-400 italic">-</span>
                           )}
                         </td>
+                        {isAdmin && (
+                          <td className="px-4 py-3 text-right">
+                            <button
+                              onClick={() => handleDeleteReport(reporte.id, reporte.numeroReporte)}
+                              disabled={isDeleting === reporte.id || tieneFactura}
+                              className={`p-1.5 rounded transition-colors ${
+                                tieneFactura
+                                  ? 'text-gray-300 cursor-not-allowed'
+                                  : 'text-red-600 hover:bg-red-50'
+                              }`}
+                              title={tieneFactura ? 'No se puede eliminar un reporte facturado' : 'Eliminar reporte'}
+                            >
+                              {isDeleting === reporte.id ? (
+                                <span className="inline-block w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <Trash2 size={16} />
+                              )}
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     );
                   })}

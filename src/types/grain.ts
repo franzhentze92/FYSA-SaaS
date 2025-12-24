@@ -41,15 +41,20 @@ export const GRAIN_TYPES = [
   'Avena', 'Centeno', 'Café', 'Cacao', 'Soya', 'Garbanzo', 'Malta', 'Grano de destilería'
 ];
 
+// Plagas reales comunes en granos almacenados en Guatemala y Centroamérica
 export const PEST_TYPES: PestType[] = [
-  { id: '1', name: 'Rice Weevil', damageCoefficient: 0.08, image: 'https://d64gsuwffb70l.cloudfront.net/693054156b56bb5eac8b43de_1764775038041_4cdb48dc.webp' },
-  { id: '2', name: 'Grain Borer', damageCoefficient: 0.12, image: 'https://d64gsuwffb70l.cloudfront.net/693054156b56bb5eac8b43de_1764775040004_3c59f374.webp' },
-  { id: '3', name: 'Flour Beetle', damageCoefficient: 0.06, image: 'https://d64gsuwffb70l.cloudfront.net/693054156b56bb5eac8b43de_1764775042104_056f4e05.webp' },
-  { id: '4', name: 'Indian Meal Moth', damageCoefficient: 0.05, image: 'https://d64gsuwffb70l.cloudfront.net/693054156b56bb5eac8b43de_1764775044083_21d4b23a.webp' },
-  { id: '5', name: 'Khapra Beetle', damageCoefficient: 0.15, image: 'https://d64gsuwffb70l.cloudfront.net/693054156b56bb5eac8b43de_1764775038041_4cdb48dc.webp' },
-  { id: '6', name: 'Grain Moth', damageCoefficient: 0.04, image: 'https://d64gsuwffb70l.cloudfront.net/693054156b56bb5eac8b43de_1764775040004_3c59f374.webp' },
-  { id: '7', name: 'Saw-toothed Beetle', damageCoefficient: 0.07, image: 'https://d64gsuwffb70l.cloudfront.net/693054156b56bb5eac8b43de_1764775042104_056f4e05.webp' },
-  { id: '8', name: 'Maize Weevil', damageCoefficient: 0.09, image: 'https://d64gsuwffb70l.cloudfront.net/693054156b56bb5eac8b43de_1764775044083_21d4b23a.webp' },
+  { id: '1', name: 'Gorgojo del arroz (Sitophilus oryzae)', damageCoefficient: 0.08, image: 'https://d64gsuwffb70l.cloudfront.net/693054156b56bb5eac8b43de_1764775038041_4cdb48dc.webp' },
+  { id: '2', name: 'Gorgojo del maíz (Sitophilus zeamais)', damageCoefficient: 0.09, image: 'https://d64gsuwffb70l.cloudfront.net/693054156b56bb5eac8b43de_1764775044083_21d4b23a.webp' },
+  { id: '3', name: 'Gorgojo del trigo (Sitophilus granarius)', damageCoefficient: 0.08, image: 'https://d64gsuwffb70l.cloudfront.net/693054156b56bb5eac8b43de_1764775038041_4cdb48dc.webp' },
+  { id: '4', name: 'Taladrador menor del grano (Rhyzopertha dominica)', damageCoefficient: 0.12, image: 'https://d64gsuwffb70l.cloudfront.net/693054156b56bb5eac8b43de_1764775040004_3c59f374.webp' },
+  { id: '5', name: 'Gorgojo castaño de la harina (Tribolium castaneum)', damageCoefficient: 0.06, image: 'https://d64gsuwffb70l.cloudfront.net/693054156b56bb5eac8b43de_1764775042104_056f4e05.webp' },
+  { id: '6', name: 'Escarabajo confuso de la harina (Tribolium confusum)', damageCoefficient: 0.06, image: 'https://d64gsuwffb70l.cloudfront.net/693054156b56bb5eac8b43de_1764775042104_056f4e05.webp' },
+  { id: '7', name: 'Polilla de los cereales (Sitotroga cerealella)', damageCoefficient: 0.04, image: 'https://d64gsuwffb70l.cloudfront.net/693054156b56bb5eac8b43de_1764775040004_3c59f374.webp' },
+  { id: '8', name: 'Polilla india de la harina (Plodia interpunctella)', damageCoefficient: 0.05, image: 'https://d64gsuwffb70l.cloudfront.net/693054156b56bb5eac8b43de_1764775044083_21d4b23a.webp' },
+  { id: '9', name: 'Carcoma achatada de los granos (Cryptolestes ferrugineus)', damageCoefficient: 0.07, image: 'https://d64gsuwffb70l.cloudfront.net/693054156b56bb5eac8b43de_1764775042104_056f4e05.webp' },
+  { id: '10', name: 'Gorgojo del frijol (Acanthoscelides obtectus)', damageCoefficient: 0.10, image: 'https://d64gsuwffb70l.cloudfront.net/693054156b56bb5eac8b43de_1764775038041_4cdb48dc.webp' },
+  { id: '11', name: 'Barrenador grande del grano (Prostephanus truncatus)', damageCoefficient: 0.15, image: 'https://d64gsuwffb70l.cloudfront.net/693054156b56bb5eac8b43de_1764775040004_3c59f374.webp' },
+  { id: '12', name: 'Polilla mediterránea de la harina (Ephestia kuehniella)', damageCoefficient: 0.05, image: 'https://d64gsuwffb70l.cloudfront.net/693054156b56bb5eac8b43de_1764775044083_21d4b23a.webp' },
 ];
 
 export const GRAIN_SENSITIVITY: Record<string, number> = {
@@ -67,6 +72,16 @@ export interface MovimientoSilo {
   notas?: string;
 }
 
+export interface ActualizacionCantidad {
+  fecha: string;
+  cantidadAnterior: number;
+  cantidadNueva: number;
+  cantidadCambio: number; // Positivo = aumento, Negativo = disminución (despacho)
+  unit: 'kg' | 'tonnes';
+  siloNumero: number;
+  notas?: string;
+}
+
 export interface GrainBatch {
   id: string; // ID único del batch para trazabilidad
   entryDate: string;
@@ -80,6 +95,7 @@ export interface GrainBatch {
   origin: string; // Nombre del barco (se obtiene automáticamente)
   siloActual: number; // Número del silo donde está actualmente
   historialMovimientos?: MovimientoSilo[]; // Historial de traspasos entre silos
+  historialActualizaciones?: ActualizacionCantidad[]; // Historial de cambios de cantidad (despachos, ajustes)
   notes?: string;
 }
 
@@ -91,6 +107,23 @@ export interface Silo {
   batches: GrainBatch[];
   isActive: boolean;
   clienteEmail?: string; // Email del cliente al que está asignado el silo
+}
+
+// Tipo para Fumigaciones de Silos
+export interface FumigacionSilo {
+  id: string;
+  silo: string;              // AP-01, AP-02, etc.
+  tipoGrano: string;         // Tipo de grano fumigado
+  batchId?: string | null;   // ID del batch de grano al que se aplicó la fumigación
+  servicioId?: number | null; // ID del servicio asociado
+  fechaFumigacion: string;   // Fecha en que se realizó la fumigación
+  productoUtilizado?: string; // Nombre del producto fumigante
+  dosis?: string;            // Dosis aplicada
+  unidadMedida?: string;     // Unidad de medida de la dosis
+  tecnico?: string;          // Nombre del técnico que realizó la fumigación
+  notas?: string;            // Notas adicionales
+  createdAt: string;
+  updatedAt: string;
 }
 
 // Tipos para Barcos
@@ -132,4 +165,5 @@ export interface VariedadGrano {
   tipoGrano: string; // Tipo base (Wheat, Maize, etc.)
   variedad: string; // Variedad específica (HWED, Premium, etc.)
   activo: boolean;
+  costoPorKg?: number; // Cost per kilogram in Quetzales (Q.) for economic loss calculation
 }

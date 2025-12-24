@@ -1,72 +1,213 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Barco } from '@/types/grain';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { Barco, GranoCarga, InsectSample } from '@/types/grain';
+import { supabase } from '@/lib/supabase';
 import { v4 as uuidv4 } from 'uuid';
 
 export const useBarcos = () => {
-  const [barcos, setBarcos] = useState<Barco[]>(() => {
-    // Cargar desde localStorage si existe
-    const saved = localStorage.getItem('barcos');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        // Asegurar que todos los granos tengan ID
-        return parsed.map((barco: Barco) => ({
-          ...barco,
-          granos: barco.granos.map((grano) => ({
-            ...grano,
-            id: grano.id || uuidv4(),
-          })),
-        }));
-      } catch {
-        return [];
-      }
-    }
-    return [];
-  });
+  const [barcos, setBarcos] = useState<Barco[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Guardar en localStorage cuando cambien los barcos
-  useEffect(() => {
-    localStorage.setItem('barcos', JSON.stringify(barcos));
-  }, [barcos]);
+  // Fetch barcos (fondeo records) from Supabase
+  const fetchBarcos = useCallback(async () => {
+    try {
+      const { data: barcosData, error: barcosError } = await supabase
+        .from('barcos_detalle')
+        .select('*')
+        .order('fecha_creacion', { ascending: false });
 
-  const addBarco = (barco: Omit<Barco, 'id'>) => {
-    const newBarco: Barco = {
-      ...barco,
-      id: uuidv4(),
-      granos: barco.granos.map(g => ({
-        ...g,
-        id: g.id || uuidv4(),
-      })),
-    };
-    setBarcos(prev => [...prev, newBarco]);
-  };
+      if (barcosError) throw barcosError;
 
-  const updateBarco = (id: string, updates: Partial<Barco>) => {
-    setBarcos(prev => prev.map(barco => {
-      if (barco.id === id) {
-        const updated = { ...barco, ...updates };
-        // Asegurar que todos los granos tengan ID
-        if (updated.granos) {
-          updated.granos = updated.granos.map(g => ({
-            ...g,
-            id: g.id || uuidv4(),
+      // Fetch granos for all barcos
+      const { data: granosData, error: granosError } = await supabase
+        .from('barcos_granos')
+        .select('*');
+
+      if (granosError) throw granosError;
+
+      // Map to Barco type (fondeo records)
+      const formattedBarcos: Barco[] = (barcosData || []).map(barco => {
+        const barcoGranos: GranoCarga[] = (granosData || [])
+          .filter(g => g.barco_id === barco.id)
+          .map(g => ({
+            id: g.id,
+            tipoGrano: g.tipo, // Use 'tipo' column (existing in DB)
+            variedadId: g.variedad_id,
+            cantidad: Number(g.cantidad),
           }));
+
+        // Parse muestreo insectos from JSON if stored
+        let muestreoInsectos: InsectSample[] = [];
+        if (barco.muestreo_insectos) {
+          try {
+            muestreoInsectos = typeof barco.muestreo_insectos === 'string' 
+              ? JSON.parse(barco.muestreo_insectos) 
+              : barco.muestreo_insectos;
+          } catch {
+            muestreoInsectos = [];
+          }
         }
-        return updated;
+
+        return {
+          id: barco.id,
+          barcoId: barco.barco_id,
+          fechaFondeo: barco.fecha_fondeo,
+          granos: barcoGranos,
+          muestreoInsectos,
+          requiereTratamientoOIRSA: barco.requiere_tratamiento_oirsa || false,
+          notas: barco.notas,
+          clienteEmail: barco.cliente_email,
+        };
+      });
+
+      setBarcos(formattedBarcos);
+    } catch (err) {
+      console.error('Error fetching barcos:', err);
+    }
+  }, []);
+
+  // Initial fetch
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      await fetchBarcos();
+      setLoading(false);
+    };
+    loadData();
+  }, [fetchBarcos]);
+
+  // Real-time subscriptions
+  useEffect(() => {
+    const subscription = supabase
+      .channel('barcos-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'barcos_detalle' }, () => {
+        fetchBarcos();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'barcos_granos' }, () => {
+        fetchBarcos();
+      })
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [fetchBarcos]);
+
+  const addBarco = async (barco: Omit<Barco, 'id'>) => {
+    try {
+      // Insert fondeo record
+      const insertData = {
+        barco_id: barco.barcoId,
+        fecha_fondeo: barco.fechaFondeo,
+        requiere_tratamiento_oirsa: barco.requiereTratamientoOIRSA,
+        notas: barco.notas,
+        cliente_email: barco.clienteEmail,
+        muestreo_insectos: barco.muestreoInsectos ? JSON.stringify(barco.muestreoInsectos) : null,
+      };
+
+      const { data: barcoData, error: barcoError } = await (supabase
+        .from('barcos_detalle') as any)
+        .insert(insertData)
+        .select()
+        .single();
+
+      if (barcoError) throw barcoError;
+      if (!barcoData) throw new Error('No data returned from insert');
+
+      // Insert granos
+      if (barco.granos && barco.granos.length > 0) {
+        const granosToInsert = barco.granos.map(g => ({
+          id: g.id || uuidv4(),
+          barco_id: barcoData.id,
+          tipo: g.tipoGrano, // Use 'tipo' column (existing in DB)
+          variedad_id: g.variedadId,
+          cantidad: g.cantidad,
+        }));
+
+        const { error: granosError } = await (supabase
+          .from('barcos_granos') as any)
+          .insert(granosToInsert);
+
+        if (granosError) throw granosError;
       }
-      return barco;
-    }));
+
+      await fetchBarcos();
+      return barcoData;
+    } catch (err) {
+      console.error('Error adding barco:', err);
+      throw err;
+    }
   };
 
-  const deleteBarco = (id: string) => {
-    setBarcos(prev => prev.filter(barco => barco.id !== id));
+  const updateBarco = async (id: string, updates: Partial<Barco>) => {
+    try {
+      const dbUpdates: Record<string, unknown> = {};
+      if (updates.barcoId !== undefined) dbUpdates.barco_id = updates.barcoId;
+      if (updates.fechaFondeo !== undefined) dbUpdates.fecha_fondeo = updates.fechaFondeo;
+      if (updates.requiereTratamientoOIRSA !== undefined) dbUpdates.requiere_tratamiento_oirsa = updates.requiereTratamientoOIRSA;
+      if (updates.notas !== undefined) dbUpdates.notas = updates.notas;
+      if (updates.clienteEmail !== undefined) dbUpdates.cliente_email = updates.clienteEmail;
+      if (updates.muestreoInsectos !== undefined) dbUpdates.muestreo_insectos = JSON.stringify(updates.muestreoInsectos);
+
+      if (Object.keys(dbUpdates).length > 0) {
+        const { error } = await (supabase
+          .from('barcos_detalle') as any)
+          .update(dbUpdates)
+          .eq('id', id);
+
+        if (error) throw error;
+      }
+
+      // Update granos if provided
+      if (updates.granos) {
+        // Delete existing granos
+        await supabase
+          .from('barcos_granos')
+          .delete()
+          .eq('barco_id', id);
+
+        // Insert new granos
+        if (updates.granos.length > 0) {
+          const granosToInsert = updates.granos.map(g => ({
+            id: g.id || uuidv4(),
+            barco_id: id,
+            tipo: g.tipoGrano, // Use 'tipo' column (existing in DB)
+            variedad_id: g.variedadId,
+            cantidad: g.cantidad,
+          }));
+
+          await (supabase
+            .from('barcos_granos') as any)
+            .insert(granosToInsert);
+        }
+      }
+
+      await fetchBarcos();
+    } catch (err) {
+      console.error('Error updating barco:', err);
+      throw err;
+    }
+  };
+
+  const deleteBarco = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('barcos_detalle')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      await fetchBarcos();
+    } catch (err) {
+      console.error('Error deleting barco:', err);
+      throw err;
+    }
   };
 
   const getBarcoById = (id: string): Barco | undefined => {
     return barcos.find(b => b.id === id);
   };
 
-  // Estadísticas
+  // Statistics
   const totalBarcos = useMemo(() => barcos.length, [barcos]);
   const barcosConTratamiento = useMemo(() => 
     barcos.filter(b => b.requiereTratamientoOIRSA).length, 
@@ -81,6 +222,7 @@ export const useBarcos = () => {
 
   return {
     barcos,
+    loading,
     addBarco,
     updateBarco,
     deleteBarco,
@@ -88,6 +230,6 @@ export const useBarcos = () => {
     totalBarcos,
     barcosConTratamiento,
     totalGrano,
+    refetch: fetchBarcos,
   };
 };
-

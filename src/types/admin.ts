@@ -2,6 +2,7 @@ export interface ServicioAsignado {
   id: string;
   servicioId: number;
   servicioTitulo: string;
+  clienteId?: string;
   clienteEmail: string;
   clienteNombre: string;
   fechaAsignacion: string;
@@ -13,5 +14,6 @@ export interface Cliente {
   nombre: string;
   email: string;
   fechaCreacion: string;
+  activo?: boolean;
 }
 

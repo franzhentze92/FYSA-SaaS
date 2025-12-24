@@ -1,68 +1,180 @@
 import { User, UserRole } from '@/types/user';
-import { v4 as uuidv4 } from 'uuid';
+import { supabase } from '@/lib/supabase';
 
-const USERS_STORAGE_KEY = 'fysa-users';
 const CURRENT_USER_STORAGE_KEY = 'fysa-current-user';
 
-// Usuarios iniciales por defecto
-const DEFAULT_USERS: Omit<User, 'id' | 'fechaCreacion'>[] = [
+// Default users for initialization
+const DEFAULT_USERS = [
   {
     email: 'admin@fysa.com',
-    password: 'admin123', // En producción esto debería estar hasheado
+    password: 'admin123',
     nombre: 'Administrador FYSA',
-    role: 'admin',
+    role: 'admin' as UserRole,
     activo: true,
   },
   {
-    email: 'aprovigra@fysa.com',
-    password: 'aprovigra123', // En producción esto debería estar hasheado
+    email: 'aprovigra@gmail.com',
+    password: 'aprovigra123',
     nombre: 'Aprovigra - Molinos Modernos S.A',
-    role: 'cliente',
+    role: 'cliente' as UserRole,
+    activo: true,
+  },
+  {
+    email: 'greentec3r@gmail.com',
+    password: 'greentec3r123',
+    nombre: 'Greentec 3R',
+    role: 'cliente' as UserRole,
     activo: true,
   },
 ];
 
-// Inicializar usuarios si no existen
-export const initializeUsers = () => {
-  const existingUsers = localStorage.getItem(USERS_STORAGE_KEY);
-  if (!existingUsers) {
-    const initialUsers: User[] = DEFAULT_USERS.map(user => ({
-      ...user,
-      id: uuidv4(),
-      fechaCreacion: new Date().toISOString(),
-    }));
-    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(initialUsers));
+// Initialize default users in Supabase if they don't exist
+export const initializeUsers = async () => {
+  try {
+    for (const defaultUser of DEFAULT_USERS) {
+      const { data: existing } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', defaultUser.email)
+        .single();
+
+      if (!existing) {
+        await supabase.from('users').insert({
+          email: defaultUser.email,
+          nombre: defaultUser.nombre,
+          role: defaultUser.role,
+          activo: defaultUser.activo,
+        });
+      }
+    }
+  } catch (err) {
+    console.error('Error initializing users:', err);
   }
 };
 
-// Obtener todos los usuarios
-export const getUsers = (): User[] => {
-  initializeUsers();
-  const usersJson = localStorage.getItem(USERS_STORAGE_KEY);
-  if (!usersJson) return [];
+// Get all users from Supabase
+export const getUsers = async (): Promise<User[]> => {
   try {
-    return JSON.parse(usersJson);
-  } catch {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .order('fecha_creacion', { ascending: false });
+
+    if (error) throw error;
+
+    return (data || []).map(u => ({
+      id: u.id,
+      email: u.email,
+      nombre: u.nombre,
+      role: u.role as UserRole,
+      activo: u.activo,
+      fechaCreacion: u.fecha_creacion,
+      password: '', // Password not stored in this table for security
+    }));
+  } catch (err) {
+    console.error('Error fetching users:', err);
     return [];
   }
 };
 
-// Buscar usuario por email
-export const getUserByEmail = (email: string): User | null => {
-  const users = getUsers();
-  return users.find(u => u.email.toLowerCase() === email.toLowerCase()) || null;
+// Get user by email from Supabase
+export const getUserByEmail = async (email: string): Promise<User | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email.toLowerCase())
+      .single();
+
+    if (error || !data) return null;
+
+    return {
+      id: data.id,
+      email: data.email,
+      nombre: data.nombre,
+      role: data.role as UserRole,
+      activo: data.activo,
+      fechaCreacion: data.fecha_creacion,
+      password: '',
+    };
+  } catch (err) {
+    console.error('Error fetching user:', err);
+    return null;
+  }
 };
 
-// Autenticar usuario
-export const authenticateUser = (email: string, password: string): User | null => {
-  const user = getUserByEmail(email);
-  if (!user) return null;
+// Authenticate user - for now using simple password check
+// In production, you'd use Supabase Auth
+export const authenticateUser = async (email: string, password: string): Promise<User | null> => {
+  // Check against default users for password validation
+  // In production, use Supabase Auth instead
+  const defaultUser = DEFAULT_USERS.find(
+    u => u.email.toLowerCase() === email.toLowerCase() && u.password === password
+  );
+
+  if (!defaultUser) {
+    // Also check if user exists in clientes table
+    const { data: cliente } = await supabase
+      .from('clientes')
+      .select('*')
+      .eq('email', email.toLowerCase())
+      .single();
+
+    if (cliente) {
+      // For client users, check if password matches (using email as default password for now)
+      // In production, implement proper auth
+      const expectedPassword = email.split('@')[0] + '123';
+      if (password === expectedPassword) {
+        const user: User = {
+          id: cliente.id,
+          email: cliente.email,
+          nombre: cliente.nombre,
+          role: 'cliente',
+          activo: cliente.activo,
+          fechaCreacion: cliente.fecha_creacion,
+          password: '',
+        };
+        return user;
+      }
+    }
+    return null;
+  }
+
+  // Get or create user in Supabase
+  let user = await getUserByEmail(email);
+  
+  if (!user) {
+    // Create user if doesn't exist
+    const { data, error } = await supabase
+      .from('users')
+      .insert({
+        email: defaultUser.email,
+        nombre: defaultUser.nombre,
+        role: defaultUser.role,
+        activo: defaultUser.activo,
+      })
+      .select()
+      .single();
+
+    if (error || !data) return null;
+
+    user = {
+      id: data.id,
+      email: data.email,
+      nombre: data.nombre,
+      role: data.role as UserRole,
+      activo: data.activo,
+      fechaCreacion: data.fecha_creacion,
+      password: '',
+    };
+  }
+
   if (!user.activo) return null;
-  if (user.password !== password) return null;
+
   return user;
 };
 
-// Guardar usuario actual en sesión
+// Save current user to session (localStorage for quick access)
 export const setCurrentUser = (user: User | null) => {
   if (user) {
     localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(user));
@@ -75,7 +187,7 @@ export const setCurrentUser = (user: User | null) => {
   }
 };
 
-// Obtener usuario actual de la sesión
+// Get current user from session
 export const getCurrentUser = (): User | null => {
   const userJson = localStorage.getItem(CURRENT_USER_STORAGE_KEY);
   if (!userJson) return null;
@@ -86,51 +198,79 @@ export const getCurrentUser = (): User | null => {
   }
 };
 
-// Verificar si el usuario actual es admin
+// Check if current user is admin
 export const isCurrentUserAdmin = (): boolean => {
   const user = getCurrentUser();
   return user?.role === 'admin';
 };
 
-// Agregar nuevo usuario (solo admin)
-export const addUser = (userData: Omit<User, 'id' | 'fechaCreacion'>): User => {
-  const users = getUsers();
-  // Verificar que el email no exista
-  if (users.some(u => u.email.toLowerCase() === userData.email.toLowerCase())) {
-    throw new Error('El email ya está registrado');
-  }
-  const newUser: User = {
-    ...userData,
-    id: uuidv4(),
-    fechaCreacion: new Date().toISOString(),
+// Add new user to Supabase
+export const addUser = async (userData: Omit<User, 'id' | 'fechaCreacion'>): Promise<User> => {
+  const { data, error } = await supabase
+    .from('users')
+    .insert({
+      email: userData.email,
+      nombre: userData.nombre,
+      role: userData.role,
+      activo: userData.activo,
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+
+  return {
+    id: data.id,
+    email: data.email,
+    nombre: data.nombre,
+    role: data.role as UserRole,
+    activo: data.activo,
+    fechaCreacion: data.fecha_creacion,
+    password: '',
   };
-  users.push(newUser);
-  localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
-  return newUser;
 };
 
-// Actualizar usuario
-export const updateUser = (userId: string, updates: Partial<User>): User | null => {
-  const users = getUsers();
-  const index = users.findIndex(u => u.id === userId);
-  if (index === -1) return null;
-  users[index] = { ...users[index], ...updates };
-  localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
-  return users[index];
+// Update user in Supabase
+export const updateUser = async (userId: string, updates: Partial<User>): Promise<User | null> => {
+  const dbUpdates: any = {};
+  if (updates.email !== undefined) dbUpdates.email = updates.email;
+  if (updates.nombre !== undefined) dbUpdates.nombre = updates.nombre;
+  if (updates.role !== undefined) dbUpdates.role = updates.role;
+  if (updates.activo !== undefined) dbUpdates.activo = updates.activo;
+
+  const { data, error } = await supabase
+    .from('users')
+    .update(dbUpdates)
+    .eq('id', userId)
+    .select()
+    .single();
+
+  if (error || !data) return null;
+
+  return {
+    id: data.id,
+    email: data.email,
+    nombre: data.nombre,
+    role: data.role as UserRole,
+    activo: data.activo,
+    fechaCreacion: data.fecha_creacion,
+    password: '',
+  };
 };
 
-// Eliminar usuario
-export const deleteUser = (userId: string): boolean => {
-  const users = getUsers();
-  const filtered = users.filter(u => u.id !== userId);
-  if (filtered.length === users.length) return false;
-  localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(filtered));
-  return true;
+// Delete user from Supabase
+export const deleteUser = async (userId: string): Promise<boolean> => {
+  const { error } = await supabase
+    .from('users')
+    .delete()
+    .eq('id', userId);
+
+  return !error;
 };
 
-// Cambiar contraseña
-export const changePassword = (userId: string, newPassword: string): boolean => {
-  const user = updateUser(userId, { password: newPassword });
-  return user !== null;
+// Change password - In production, use Supabase Auth
+export const changePassword = async (userId: string, newPassword: string): Promise<boolean> => {
+  // For production, implement with Supabase Auth
+  console.warn('Password change not implemented with Supabase Auth yet');
+  return false;
 };
-
